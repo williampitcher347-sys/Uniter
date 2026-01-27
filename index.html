@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Web Unity Engine</title>
+<style>
+    body { margin: 0; overflow: hidden; background: #111; font-family: Arial; }
+    #ui {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(20,20,20,0.9);
+        padding: 10px;
+        color: white;
+        border-radius: 8px;
+        width: 220px;
+    }
+    button {
+        width: 100%;
+        margin-top: 6px;
+        padding: 6px;
+        background: #2a7cff;
+        border: none;
+        color: white;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    button:hover { background: #4c94ff; }
+    #info {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        color: #aaa;
+        font-size: 12px;
+    }
+</style>
+</head>
+<body>
+
+<div id="ui">
+    <b>Web Unity Engine</b>
+    <button onclick="spawnCube()">Spawn Cube</button>
+    <button onclick="resetScene()">Reset Scene</button>
+</div>
+
+<div id="info">
+WASD = Move | Mouse = Look | Click = Select
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+
+<script>
+/* =====================
+   BASIC ENGINE SETUP
+===================== */
+
+let scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
+
+let camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+
+let renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+/* =====================
+   LIGHTING
+===================== */
+
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 7);
+scene.add(light);
+
+scene.add(new THREE.AmbientLight(0x404040));
+
+/* =====================
+   GROUND
+===================== */
+
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(100, 100),
+    new THREE.MeshStandardMaterial({ color: 0x333333 })
+);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+/* =====================
+   CAMERA CONTROLS
+===================== */
+
+camera.position.set(0, 2, 5);
+
+let keys = {};
+let yaw = 0;
+let pitch = 0;
+
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+document.addEventListener("mousemove", e => {
+    if (document.pointerLockElement) {
+        yaw -= e.movementX * 0.002;
+        pitch -= e.movementY * 0.002;
+        pitch = Math.max(-1.5, Math.min(1.5, pitch));
+    }
+});
+
+document.addEventListener("click", () => {
+    document.body.requestPointerLock();
+});
+
+/* =====================
+   OBJECT SYSTEM
+===================== */
+
+let objects = [];
+
+function spawnCube() {
+    const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(),
+        new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff })
+    );
+    cube.position.set(
+        Math.random() * 4 - 2,
+        0.5,
+        Math.random() * 4 - 2
+    );
+    scene.add(cube);
+    objects.push(cube);
+}
+
+function resetScene() {
+    objects.forEach(o => scene.remove(o));
+    objects = [];
+}
+
+/* =====================
+   OBJECT SELECTION
+===================== */
+
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+let selected = null;
+
+window.addEventListener("mousedown", e => {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(objects);
+    if (hits.length > 0) {
+        if (selected) selected.material.emissive.set(0x000000);
+        selected = hits[0].object;
+        selected.material.emissive.set(0x222222);
+    }
+});
+
+/* =====================
+   GAME LOOP
+===================== */
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    camera.rotation.order = "YXZ";
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+
+    let speed = 0.1;
+    if (keys["w"]) camera.translateZ(-speed);
+    if (keys["s"]) camera.translateZ(speed);
+    if (keys["a"]) camera.translateX(-speed);
+    if (keys["d"]) camera.translateX(speed);
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+/* =====================
+   RESIZE
+===================== */
+
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
