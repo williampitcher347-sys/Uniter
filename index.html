@@ -2,20 +2,21 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Code Engine v2</title>
+<title>Web Engine (Fixed)</title>
 <style>
-html,body { margin:0; height:100%; overflow:hidden; background:#1e1e1e; }
+html,body { margin:0; height:100%; overflow:hidden; background:#1e1e1e }
 #ui {
   position:fixed; top:0; left:0; right:0;
   height:40px; background:#2d2d2d;
-  display:flex; align-items:center; gap:8px;
-  padding:0 10px; color:white; font-family:monospace;
+  display:flex; align-items:center; gap:6px;
+  padding:0 10px; color:white;
+  font-family:monospace; z-index:10;
 }
 #workspace {
   position:fixed; top:40px; left:0; bottom:35%;
   width:220px; background:#252526;
-  color:white; font-family:monospace;
-  padding:6px; overflow:auto;
+  color:white; padding:6px;
+  font-family:monospace; overflow:auto;
 }
 #viewport {
   position:fixed; top:40px; left:220px;
@@ -31,39 +32,42 @@ textarea {
   border:none; padding:10px;
   font-family:monospace; font-size:14px;
 }
-button { background:#0e639c; color:white; border:none; padding:5px 10px; }
+button {
+  background:#0e639c; color:white;
+  border:none; padding:4px 8px;
+  cursor:pointer;
+}
 </style>
 </head>
 <body>
 
 <div id="ui">
   <button onclick="run()">▶ Run</button>
-  <input type="file" id="file" accept=".glb,.gltf">
+  <button onclick="addCube()">⬛ Cube</button>
+  <button onclick="addSphere()">⚪ Sphere</button>
+  <button onclick="addCylinder()">🟫 Cylinder</button>
   <span id="lock">Mouse: UNLOCKED (M)</span>
 </div>
 
-<div id="workspace"><b>Workspace</b><div id="list"></div></div>
+<div id="workspace">
+  <b>Workspace</b>
+  <div id="list"></div>
+</div>
+
 <div id="viewport"></div>
 
 <div id="editor">
 <textarea id="code">
-// Scene script
+// Scripted objects
 camera.position.set(0,6,12);
 camera.lookAt(0,0,0);
-
-// Baseplate
-new Block("Baseplate", 0,-0.5,0, 40,1,40, 0x3a8f3a);
-
-// Test cube
-new Block("Cube", 0,2,0, 2,2,2, 0xff4444);
 </textarea>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* ---------- ENGINE CORE ---------- */
+/* ---------- CORE ---------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
@@ -73,7 +77,7 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 document.getElementById("viewport").appendChild(renderer.domElement);
 
 function resize(){
-  const v = document.getElementById("viewport");
+  const v = viewport;
   renderer.setSize(v.clientWidth, v.clientHeight);
   camera.aspect = v.clientWidth / v.clientHeight;
   camera.updateProjectionMatrix();
@@ -87,32 +91,61 @@ const sun = new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(20,30,10);
 scene.add(sun);
 
+/* BASEPLATE */
+const ground = new THREE.Mesh(
+  new THREE.BoxGeometry(50,1,50),
+  new THREE.MeshStandardMaterial({color:0x3a8f3a})
+);
+ground.position.y = -0.5;
+scene.add(ground);
+
 /* ---------- WORKSPACE ---------- */
 const workspace = [];
 function refreshWorkspace(){
-  const l = document.getElementById("list");
-  l.innerHTML = "";
+  list.innerHTML = "";
   workspace.forEach(o=>{
     const d = document.createElement("div");
     d.textContent = o.name;
-    l.appendChild(d);
+    list.appendChild(d);
   });
 }
 
-/* ---------- API ---------- */
-class Block {
-  constructor(name,x,y,z,w,h,d,color){
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(w,h,d),
-      new THREE.MeshStandardMaterial({color})
-    );
-    m.position.set(x,y,z);
-    m.name = name;
-    scene.add(m);
-    workspace.push(m);
-    refreshWorkspace();
-    return m;
-  }
+/* ---------- OBJECT API ---------- */
+function addObject(mesh, name){
+  mesh.name = name;
+  scene.add(mesh);
+  workspace.push(mesh);
+  refreshWorkspace();
+}
+
+function addCube(){
+  addObject(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(2,2,2),
+      new THREE.MeshStandardMaterial({color:0xff5555})
+    ),
+    "Cube"
+  );
+}
+
+function addSphere(){
+  addObject(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(1,24,24),
+      new THREE.MeshStandardMaterial({color:0x55aaff})
+    ),
+    "Sphere"
+  );
+}
+
+function addCylinder(){
+  addObject(
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(1,1,2,24),
+      new THREE.MeshStandardMaterial({color:0xaaaaaa})
+    ),
+    "Cylinder"
+  );
 }
 
 /* ---------- SCRIPT RUN ---------- */
@@ -124,15 +157,15 @@ function run(){
 }
 
 /* ---------- CAMERA CONTROLS ---------- */
-const keys = {};
 let locked = false;
+const keys = {};
+let yaw = 0, pitch = 0;
 
 addEventListener("keydown", e=>{
   keys[e.key.toLowerCase()] = true;
   if(e.key==="m"){
     locked = !locked;
-    document.getElementById("lock").textContent =
-      "Mouse: " + (locked?"LOCKED":"UNLOCKED") + " (M)";
+    lock.textContent = `Mouse: ${locked?"LOCKED":"UNLOCKED"} (M)`;
     locked ? document.body.requestPointerLock() : document.exitPointerLock();
   }
 });
@@ -140,40 +173,40 @@ addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
 
 addEventListener("mousemove", e=>{
   if(!locked) return;
-  camera.rotation.y -= e.movementX * 0.002;
-  camera.rotation.x -= e.movementY * 0.002;
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-1.4, Math.min(1.4, pitch));
 });
 
-function camMove(){
-  const s = 0.25;
-  if(keys.w) camera.translateZ(-s);
-  if(keys.s) camera.translateZ(s);
-  if(keys.a) camera.translateX(-s);
-  if(keys.d) camera.translateX(s);
-  if(keys.q) camera.translateY(-s);
-  if(keys.e) camera.translateY(s);
-}
+function moveCamera(){
+  const speed = 0.25;
 
-/* ---------- MODEL UPLOAD ---------- */
-file.onchange = ()=>{
-  const loader = new THREE.GLTFLoader();
-  loader.load(URL.createObjectURL(file.files[0]), g=>{
-    g.scene.name = file.files[0].name;
-    scene.add(g.scene);
-    workspace.push(g.scene);
-    refreshWorkspace();
-    alert("Model Loaded");
-  });
-};
+  camera.rotation.set(pitch, yaw, 0);
+
+  const forward = new THREE.Vector3(
+    Math.sin(yaw), 0, Math.cos(yaw)
+  ).normalize();
+
+  const right = new THREE.Vector3(
+    Math.cos(yaw), 0, -Math.sin(yaw)
+  ).normalize();
+
+  if(keys.w) camera.position.addScaledVector(forward, -speed);
+  if(keys.s) camera.position.addScaledVector(forward, speed);
+  if(keys.a) camera.position.addScaledVector(right, -speed);
+  if(keys.d) camera.position.addScaledVector(right, speed);
+  if(keys.q) camera.position.y -= speed;
+  if(keys.e) camera.position.y += speed;
+}
 
 /* ---------- LOOP ---------- */
 function loop(){
   requestAnimationFrame(loop);
-  camMove();
+  moveCamera();
   renderer.render(scene, camera);
 }
-run();
 loop();
 </script>
 </body>
 </html>
+
