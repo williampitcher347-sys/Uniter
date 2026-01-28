@@ -4,270 +4,236 @@
 <meta charset="UTF-8">
 <title>Web Game Engine</title>
 <style>
-body { margin:0; overflow:hidden; background:#0e0e0e; font-family:Arial; color:white; }
-
-#panel {
-  position:fixed;
-  top:10px; left:10px;
-  width:300px;
-  background:rgba(15,15,15,0.95);
-  border-radius:8px;
-  padding:10px;
+body{margin:0;overflow:hidden;background:#0e0e0e;color:white;font-family:Arial}
+#panel{
+ position:fixed;top:10px;left:10px;width:320px;
+ background:rgba(15,15,15,.95);border-radius:8px;padding:10px
 }
-
-.tab {
-  display:inline-block;
-  padding:6px 10px;
-  background:#222;
-  cursor:pointer;
-  border-radius:4px;
-  margin-right:4px;
+#workspace{
+ max-height:150px;overflow:auto;border:1px solid #333;
+ padding:5px;margin-top:6px
 }
-.tab.active { background:#2a7cff; }
-
-.page { display:none; margin-top:10px; }
-.page.active { display:block; }
-
-button {
-  width:100%;
-  margin-top:6px;
-  padding:6px;
-  background:#2a7cff;
-  border:none;
-  color:white;
-  cursor:pointer;
-  border-radius:4px;
-}
-button:hover { background:#4c94ff; }
-
-textarea {
-  width:100%;
-  height:180px;
-  background:#111;
-  color:#0f0;
-  border:1px solid #333;
-  border-radius:4px;
-  font-family:monospace;
-  font-size:12px;
-}
+.item{padding:3px;cursor:pointer}
+.item.selected{background:#2a7cff}
+button{width:100%;margin-top:6px;padding:6px;background:#2a7cff;border:0;color:white;border-radius:4px}
+textarea{width:100%;height:160px;background:#111;color:#0f0;border:1px solid #333;font-family:monospace;font-size:12px}
+.tab{display:inline-block;padding:5px 8px;background:#222;border-radius:4px;cursor:pointer}
+.tab.active{background:#2a7cff}
+.page{display:none;margin-top:6px}
+.page.active{display:block}
 </style>
 </head>
 <body>
 
 <div id="panel">
-  <div>
-    <span class="tab active" onclick="switchTab('editor')">Editor</span>
-    <span class="tab" onclick="switchTab('models')">Models</span>
-  </div>
+ <div>
+  <span class="tab active" onclick="tab('editor')">Editor</span>
+  <span class="tab" onclick="tab('models')">Models</span>
+  <span class="tab" onclick="tab('files')">Files</span>
+ </div>
 
-  <!-- SCRIPT EDITOR -->
-  <div id="editor" class="page active">
-    <b>Script Editor</b>
-    <textarea id="scriptCode">
-class Script {
-  start(obj) {
-    // called once
-  }
-
-  update(obj, dt) {
-    obj.mesh.rotation.y += dt;
-  }
+ <div id="editor" class="page active">
+  <b>Workspace</b>
+  <div id="workspace"></div>
+  <b>Script</b>
+  <textarea id="code">
+class Script{
+ start(o){}
+ update(o,dt){
+  o.mesh.rotation.y+=dt;
+ }
 }
-    </textarea>
-    <button onclick="applyScript()">Apply Script to Selected</button>
-  </div>
+  </textarea>
+  <button onclick="applyScript()">Apply Script</button>
+ </div>
 
-  <!-- MODELS -->
-  <div id="models" class="page">
-    <b>Models</b>
-    <button onclick="spawn('cube')">Cube</button>
-    <button onclick="spawn('sphere')">Sphere</button>
-    <button onclick="spawn('cylinder')">Cylinder</button>
-    <button onclick="resetScene()">Clear Scene</button>
-  </div>
+ <div id="models" class="page">
+  <button onclick="spawn('cube')">Cube</button>
+  <button onclick="spawn('sphere')">Sphere</button>
+  <button onclick="spawn('cylinder')">Cylinder</button>
+ </div>
+
+ <div id="files" class="page">
+  <button onclick="saveScene()">Save Scene</button>
+  <input type="file" id="loadFile" accept=".json" />
+  <button onclick="loadScene()">Load Scene</button>
+  <hr>
+  <input type="file" id="assetUpload" accept=".glb,.gltf" />
+ </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* =====================
-   ENGINE CORE
-===================== */
+/* ENGINE CORE */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0e0e0e);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0e0e0e);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,1000);
+camera.position.set(0,4,8);
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
-camera.position.set(0, 3, 8);
-
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
 
-/* =====================
-   LIGHTING
-===================== */
-
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+/* LIGHT */
+const sun=new THREE.DirectionalLight(0xffffff,1.2);
 sun.position.set(10,20,10);
-sun.castShadow = true;
+sun.castShadow=true;
 scene.add(sun);
 scene.add(new THREE.AmbientLight(0x404040));
 
-/* =====================
-   PLATFORM
-===================== */
-
-const platform = new THREE.Mesh(
-  new THREE.BoxGeometry(20,1,20),
-  new THREE.MeshStandardMaterial({ color:0x2b2b2b })
+/* PLATFORM */
+const platform=new THREE.Mesh(
+ new THREE.BoxGeometry(30,1,30),
+ new THREE.MeshStandardMaterial({color:0x2b2b2b})
 );
-platform.position.y = -0.5;
-platform.receiveShadow = true;
+platform.position.y=-.5;
+platform.receiveShadow=true;
 scene.add(platform);
 
-/* =====================
-   GAME OBJECT SYSTEM
-===================== */
+/* OBJECT SYSTEM */
+const objects=[];
+let selected=null;
 
-const objects = [];
-let selected = null;
-
-function createObject(mesh) {
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  scene.add(mesh);
-
-  const obj = { mesh, script:null, started:false };
-  objects.push(obj);
-  return obj;
+function addObject(mesh,type="custom"){
+ mesh.castShadow=mesh.receiveShadow=true;
+ scene.add(mesh);
+ const obj={mesh,type,scriptCode:"",script:null,started:false};
+ objects.push(obj);
+ refreshWorkspace();
+ return obj;
 }
 
-/* =====================
-   MODELS
-===================== */
-
-function spawn(type) {
-  let geo;
-  if (type === "cube") geo = new THREE.BoxGeometry();
-  if (type === "sphere") geo = new THREE.SphereGeometry(0.5, 24, 24);
-  if (type === "cylinder") geo = new THREE.CylinderGeometry(0.5,0.5,1,24);
-
-  const mesh = new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({ color:Math.random()*0xffffff })
-  );
-
-  mesh.position.set(Math.random()*4-2, 1, Math.random()*4-2);
-  createObject(mesh);
+/* MODELS */
+function spawn(t){
+ let geo;
+ if(t==="cube")geo=new THREE.BoxGeometry();
+ if(t==="sphere")geo=new THREE.SphereGeometry(.5,24,24);
+ if(t==="cylinder")geo=new THREE.CylinderGeometry(.5,.5,1,24);
+ const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:Math.random()*0xffffff}));
+ mesh.position.set(Math.random()*4-2,1,Math.random()*4-2);
+ addObject(mesh,t);
 }
 
-function resetScene() {
-  objects.forEach(o => scene.remove(o.mesh));
-  objects.length = 0;
-  selected = null;
+/* WORKSPACE */
+function refreshWorkspace(){
+ const w=document.getElementById("workspace");
+ w.innerHTML="";
+ objects.forEach((o,i)=>{
+  const d=document.createElement("div");
+  d.className="item"+(o===selected?" selected":"");
+  d.textContent=o.type+"_"+i;
+  d.onclick=()=>select(o);
+  w.appendChild(d);
+ });
+}
+function select(o){
+ selected=o;
+ document.getElementById("code").value=o.scriptCode||document.getElementById("code").value;
+ refreshWorkspace();
 }
 
-/* =====================
-   SCRIPT EDITOR
-===================== */
-
-function applyScript() {
-  if (!selected) return alert("No object selected!");
-
-  try {
-    const code = document.getElementById("scriptCode").value;
-    const ScriptClass = new Function(code + "; return Script;")();
-    selected.script = new ScriptClass();
-    selected.started = false;
-  } catch (e) {
-    alert("Script Error:\n" + e.message);
-  }
+/* SCRIPTING */
+function applyScript(){
+ if(!selected)return alert("No object selected");
+ try{
+  const c=document.getElementById("code").value;
+  const C=new Function(c+";return Script;")();
+  selected.script=new C();
+  selected.scriptCode=c;
+  selected.started=false;
+ }catch(e){alert(e.message)}
 }
 
-/* =====================
-   OBJECT SELECTION
-===================== */
+/* SAVE / LOAD */
+function saveScene(){
+ const data=objects.map(o=>({
+  type:o.type,
+  pos:o.mesh.position.toArray(),
+  rot:o.mesh.rotation.toArray(),
+  scale:o.mesh.scale.toArray(),
+  script:o.scriptCode
+ }));
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="scene.json";
+ a.click();
+}
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
+function loadScene(){
+ const f=document.getElementById("loadFile").files[0];
+ if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  objects.forEach(o=>scene.remove(o.mesh));
+  objects.length=0;
+  JSON.parse(r.result).forEach(d=>{
+   spawn(d.type);
+   const o=objects.at(-1);
+   o.mesh.position.fromArray(d.pos);
+   o.mesh.rotation.fromArray(d.rot);
+   o.mesh.scale.fromArray(d.scale);
+   if(d.script){
+    document.getElementById("code").value=d.script;
+    select(o); applyScript();
+   }
+  });
+ };
+ r.readAsText(f);
+}
 
-addEventListener("mousedown", e => {
-  mouse.x = (e.clientX / innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
+/* ASSET UPLOAD */
+document.getElementById("assetUpload").onchange=e=>{
+ const file=e.target.files[0];
+ if(!file)return;
+ const loader=new THREE.GLTFLoader();
+ loader.load(URL.createObjectURL(file),g=>{
+  const model=g.scene;
+  model.position.set(0,1,0);
+  addObject(model,"asset");
+ });
+};
 
-  const hits = raycaster.intersectObjects(objects.map(o=>o.mesh));
-  if (hits.length) {
-    if (selected) selected.mesh.material.emissive.set(0x000000);
-    selected = objects.find(o => o.mesh === hits[0].object);
-    selected.mesh.material.emissive.set(0x222222);
-  }
+/* CAMERA */
+let keys={},yaw=0,pitch=0;
+addEventListener("keydown",e=>keys[e.key]=1);
+addEventListener("keyup",e=>keys[e.key]=0);
+addEventListener("mousemove",e=>{
+ if(document.pointerLockElement){
+  yaw-=e.movementX*.002;
+  pitch=Math.max(-1.5,Math.min(1.5,pitch-e.movementY*.002));
+ }
 });
+addEventListener("click",()=>document.body.requestPointerLock());
 
-/* =====================
-   CAMERA CONTROLS
-===================== */
-
-let keys = {}, yaw=0, pitch=0;
-addEventListener("keydown", e=>keys[e.key.toLowerCase()]=true);
-addEventListener("keyup", e=>keys[e.key.toLowerCase()]=false);
-addEventListener("click", ()=>document.body.requestPointerLock());
-addEventListener("mousemove", e=>{
-  if (document.pointerLockElement) {
-    yaw -= e.movementX*0.002;
-    pitch -= e.movementY*0.002;
-    pitch = Math.max(-1.5, Math.min(1.5, pitch));
+/* LOOP */
+let last=performance.now();
+(function loop(t){
+ requestAnimationFrame(loop);
+ const dt=(t-last)/1000;last=t;
+ camera.rotation.set(pitch,yaw,0,"YXZ");
+ if(keys.w)camera.translateZ(-6*dt);
+ if(keys.s)camera.translateZ(6*dt);
+ if(keys.a)camera.translateX(-6*dt);
+ if(keys.d)camera.translateX(6*dt);
+ objects.forEach(o=>{
+  if(o.script){
+   if(!o.started){o.script.start?.(o);o.started=true}
+   o.script.update?.(o,dt);
   }
-});
-
-/* =====================
-   LOOP
-===================== */
-
-let last = performance.now();
-function loop(t){
-  requestAnimationFrame(loop);
-  const dt = (t-last)/1000; last=t;
-
-  camera.rotation.order="YXZ";
-  camera.rotation.y=yaw;
-  camera.rotation.x=pitch;
-
-  const sp=6*dt;
-  if(keys.w) camera.translateZ(-sp);
-  if(keys.s) camera.translateZ(sp);
-  if(keys.a) camera.translateX(-sp);
-  if(keys.d) camera.translateX(sp);
-
-  for(const o of objects){
-    if(o.script){
-      if(!o.started){ o.script.start?.(o); o.started=true; }
-      o.script.update?.(o,dt);
-    }
-  }
-
-  renderer.render(scene,camera);
+ });
+ renderer.render(scene,camera);
+})();
+function tab(n){
+ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ document.querySelector(`.tab[onclick*="${n}"]`).classList.add("active");
+ document.getElementById(n).classList.add("active");
 }
-loop(last);
-
-/* =====================
-   UI
-===================== */
-
-function switchTab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-  document.querySelector(`.tab[onclick*="${name}"]`).classList.add("active");
-  document.getElementById(name).classList.add("active");
-}
-
-addEventListener("resize", ()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
 </script>
 </body>
 </html>
