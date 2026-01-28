@@ -2,105 +2,95 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Web Engine (Fixed)</title>
+<title>Web Game Engine</title>
 <style>
-html,body { margin:0; height:100%; overflow:hidden; background:#1e1e1e }
-#ui {
-  position:fixed; top:0; left:0; right:0;
-  height:40px; background:#2d2d2d;
-  display:flex; align-items:center; gap:6px;
-  padding:0 10px; color:white;
-  font-family:monospace; z-index:10;
+html,body { margin:0; height:100%; overflow:hidden; background:#1e1e1e; font-family:monospace }
+#top {
+  height:40px; background:#2d2d2d; color:white;
+  display:flex; align-items:center; gap:6px; padding:0 10px;
 }
-#workspace {
-  position:fixed; top:40px; left:0; bottom:35%;
-  width:220px; background:#252526;
-  color:white; padding:6px;
-  font-family:monospace; overflow:auto;
+button { background:#0e639c; color:white; border:none; padding:4px 8px; cursor:pointer }
+#layout {
+  display:grid;
+  grid-template-columns: 220px 1fr 300px;
+  grid-template-rows: 1fr;
+  height:calc(100% - 40px);
 }
-#viewport {
-  position:fixed; top:40px; left:220px;
-  right:0; bottom:35%;
+#workspace, #script {
+  background:#252526; color:white; padding:6px; overflow:auto;
 }
-#editor {
-  position:fixed; left:0; right:0; bottom:0;
-  height:35%; background:#1e1e1e;
-}
+#viewport { background:black; }
 textarea {
   width:100%; height:100%;
   background:#1e1e1e; color:#d4d4d4;
-  border:none; padding:10px;
-  font-family:monospace; font-size:14px;
-}
-button {
-  background:#0e639c; color:white;
-  border:none; padding:4px 8px;
-  cursor:pointer;
+  border:none; resize:none;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">
-  <button onclick="run()">▶ Run</button>
-  <button onclick="addCube()">⬛ Cube</button>
-  <button onclick="addSphere()">⚪ Sphere</button>
-  <button onclick="addCylinder()">🟫 Cylinder</button>
+<div id="top">
+  <button onclick="addCube()">Cube</button>
+  <button onclick="addSphere()">Sphere</button>
+  <button onclick="saveProject()">💾 Save</button>
   <span id="lock">Mouse: UNLOCKED (M)</span>
 </div>
 
-<div id="workspace">
-  <b>Workspace</b>
-  <div id="list"></div>
-</div>
+<div id="layout">
+  <div id="workspace">
+    <b>Workspace</b>
+    <div id="list"></div>
+  </div>
 
-<div id="viewport"></div>
+  <div id="viewport"></div>
 
-<div id="editor">
-<textarea id="code">
-// Scripted objects
-camera.position.set(0,6,12);
+  <div id="script">
+    <b>Script Editor (JavaScript)</b>
+    <textarea id="code">
+// Engine script runs on Play
+camera.position.set(0, 8, 14);
 camera.lookAt(0,0,0);
-</textarea>
+    </textarea>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 
 <script>
-/* ---------- CORE ---------- */
+/* ---------- SCENE ---------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(75,1,0.1,1000);
-
 const renderer = new THREE.WebGLRenderer({antialias:true});
-document.getElementById("viewport").appendChild(renderer.domElement);
+viewport.appendChild(renderer.domElement);
 
 function resize(){
-  const v = viewport;
-  renderer.setSize(v.clientWidth, v.clientHeight);
-  camera.aspect = v.clientWidth / v.clientHeight;
+  renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+  camera.aspect = viewport.clientWidth / viewport.clientHeight;
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize);
 resize();
 
-/* LIGHT */
+/* ---------- LIGHT ---------- */
 scene.add(new THREE.AmbientLight(0xffffff,0.6));
 const sun = new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(20,30,10);
 scene.add(sun);
 
-/* BASEPLATE */
-const ground = new THREE.Mesh(
-  new THREE.BoxGeometry(50,1,50),
+/* ---------- BASEPLATE ---------- */
+const baseplate = new THREE.Mesh(
+  new THREE.BoxGeometry(100,1,100),
   new THREE.MeshStandardMaterial({color:0x3a8f3a})
 );
-ground.position.y = -0.5;
-scene.add(ground);
+baseplate.position.y = -0.5;
+baseplate.name = "Baseplate";
+scene.add(baseplate);
 
 /* ---------- WORKSPACE ---------- */
-const workspace = [];
+const workspace = [baseplate];
+
 function refreshWorkspace(){
   list.innerHTML = "";
   workspace.forEach(o=>{
@@ -109,10 +99,12 @@ function refreshWorkspace(){
     list.appendChild(d);
   });
 }
+refreshWorkspace();
 
-/* ---------- OBJECT API ---------- */
+/* ---------- OBJECT CREATION ---------- */
 function addObject(mesh, name){
   mesh.name = name;
+  mesh.position.set(0,1,0);
   scene.add(mesh);
   workspace.push(mesh);
   refreshWorkspace();
@@ -138,75 +130,58 @@ function addSphere(){
   );
 }
 
-function addCylinder(){
-  addObject(
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(1,1,2,24),
-      new THREE.MeshStandardMaterial({color:0xaaaaaa})
-    ),
-    "Cylinder"
-  );
+/* ---------- SAVE ---------- */
+function saveProject(){
+  const data = workspace.map(o=>({
+    name:o.name,
+    type:o.geometry.type,
+    pos:o.position,
+    color:o.material.color.getHex()
+  }));
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.json";
+  a.click();
 }
 
-/* ---------- SCRIPT RUN ---------- */
-function run(){
-  workspace.forEach(o=>scene.remove(o));
-  workspace.length = 0;
-  try { new Function(code.value)(); }
-  catch(e){ alert(e.message); }
-}
+/* ---------- CAMERA ---------- */
+let locked=false, yaw=0, pitch=0;
+const keys={};
 
-/* ---------- CAMERA CONTROLS ---------- */
-let locked = false;
-const keys = {};
-let yaw = 0, pitch = 0;
-
-addEventListener("keydown", e=>{
-  keys[e.key.toLowerCase()] = true;
+addEventListener("keydown",e=>{
+  keys[e.key.toLowerCase()]=true;
   if(e.key==="m"){
-    locked = !locked;
-    lock.textContent = `Mouse: ${locked?"LOCKED":"UNLOCKED"} (M)`;
-    locked ? document.body.requestPointerLock() : document.exitPointerLock();
+    locked=!locked;
+    lock.textContent=`Mouse: ${locked?"LOCKED":"UNLOCKED"} (M)`;
+    locked?document.body.requestPointerLock():document.exitPointerLock();
   }
 });
-addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
-
-addEventListener("mousemove", e=>{
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+addEventListener("mousemove",e=>{
   if(!locked) return;
-  yaw -= e.movementX * 0.002;
-  pitch -= e.movementY * 0.002;
-  pitch = Math.max(-1.4, Math.min(1.4, pitch));
+  yaw-=e.movementX*0.002;
+  pitch-=e.movementY*0.002;
+  pitch=Math.max(-1.4,Math.min(1.4,pitch));
 });
 
-function moveCamera(){
-  const speed = 0.25;
-
-  camera.rotation.set(pitch, yaw, 0);
-
-  const forward = new THREE.Vector3(
-    Math.sin(yaw), 0, Math.cos(yaw)
-  ).normalize();
-
-  const right = new THREE.Vector3(
-    Math.cos(yaw), 0, -Math.sin(yaw)
-  ).normalize();
-
-  if(keys.w) camera.position.addScaledVector(forward, -speed);
-  if(keys.s) camera.position.addScaledVector(forward, speed);
-  if(keys.a) camera.position.addScaledVector(right, -speed);
-  if(keys.d) camera.position.addScaledVector(right, speed);
-  if(keys.q) camera.position.y -= speed;
-  if(keys.e) camera.position.y += speed;
+function moveCam(){
+  camera.rotation.set(pitch,yaw,0);
+  const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+  const r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  if(keys.w) camera.position.addScaledVector(f,-0.3);
+  if(keys.s) camera.position.addScaledVector(f,0.3);
+  if(keys.a) camera.position.addScaledVector(r,-0.3);
+  if(keys.d) camera.position.addScaledVector(r,0.3);
 }
 
 /* ---------- LOOP ---------- */
 function loop(){
   requestAnimationFrame(loop);
-  moveCamera();
-  renderer.render(scene, camera);
+  moveCam();
+  renderer.render(scene,camera);
 }
 loop();
 </script>
 </body>
 </html>
-
