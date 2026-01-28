@@ -4,35 +4,87 @@
 <meta charset="UTF-8">
 <title>Web Game Engine</title>
 <style>
-body { margin:0; overflow:hidden; background:#0e0e0e; font-family:Arial; }
-#ui {
-    position:fixed;
-    top:10px; left:10px;
-    background:rgba(15,15,15,0.95);
-    padding:10px;
-    color:white;
-    border-radius:8px;
-    width:240px;
+body { margin:0; overflow:hidden; background:#0e0e0e; font-family:Arial; color:white; }
+
+#panel {
+  position:fixed;
+  top:10px; left:10px;
+  width:300px;
+  background:rgba(15,15,15,0.95);
+  border-radius:8px;
+  padding:10px;
 }
+
+.tab {
+  display:inline-block;
+  padding:6px 10px;
+  background:#222;
+  cursor:pointer;
+  border-radius:4px;
+  margin-right:4px;
+}
+.tab.active { background:#2a7cff; }
+
+.page { display:none; margin-top:10px; }
+.page.active { display:block; }
+
 button {
-    width:100%;
-    margin-top:6px;
-    padding:6px;
-    background:#2a7cff;
-    border:none;
-    color:white;
-    cursor:pointer;
-    border-radius:4px;
+  width:100%;
+  margin-top:6px;
+  padding:6px;
+  background:#2a7cff;
+  border:none;
+  color:white;
+  cursor:pointer;
+  border-radius:4px;
 }
 button:hover { background:#4c94ff; }
+
+textarea {
+  width:100%;
+  height:180px;
+  background:#111;
+  color:#0f0;
+  border:1px solid #333;
+  border-radius:4px;
+  font-family:monospace;
+  font-size:12px;
+}
 </style>
 </head>
 <body>
 
-<div id="ui">
-<b>Web Game Engine</b>
-<button onclick="spawnCube()">Spawn Scripted Cube</button>
-<button onclick="resetScene()">Reset Scene</button>
+<div id="panel">
+  <div>
+    <span class="tab active" onclick="switchTab('editor')">Editor</span>
+    <span class="tab" onclick="switchTab('models')">Models</span>
+  </div>
+
+  <!-- SCRIPT EDITOR -->
+  <div id="editor" class="page active">
+    <b>Script Editor</b>
+    <textarea id="scriptCode">
+class Script {
+  start(obj) {
+    // called once
+  }
+
+  update(obj, dt) {
+    obj.mesh.rotation.y += dt;
+  }
+}
+    </textarea>
+    <button onclick="applyScript()">Apply Script to Selected</button>
+  </div>
+
+  <!-- MODELS -->
+  <div id="models" class="page">
+    <b>Models</b>
+    <button onclick="spawn('cube')">Cube</button>
+    <button onclick="spawn('sphere')">Sphere</button>
+    <button onclick="spawn('cylinder')">Cylinder</button>
+    <button onclick="resetScene()">Clear Scene</button>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
@@ -51,25 +103,16 @@ camera.position.set(0, 3, 8);
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 /* =====================
-   REAL LIGHTING
+   LIGHTING
 ===================== */
 
 const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(10, 20, 10);
+sun.position.set(10,20,10);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 50;
-sun.shadow.camera.left = -20;
-sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20;
-sun.shadow.camera.bottom = -20;
 scene.add(sun);
-
 scene.add(new THREE.AmbientLight(0x404040));
 
 /* =====================
@@ -77,8 +120,8 @@ scene.add(new THREE.AmbientLight(0x404040));
 ===================== */
 
 const platform = new THREE.Mesh(
-    new THREE.BoxGeometry(20, 1, 20),
-    new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
+  new THREE.BoxGeometry(20,1,20),
+  new THREE.MeshStandardMaterial({ color:0x2b2b2b })
 );
 platform.position.y = -0.5;
 platform.receiveShadow = true;
@@ -88,118 +131,142 @@ scene.add(platform);
    GAME OBJECT SYSTEM
 ===================== */
 
-const gameObjects = [];
+const objects = [];
+let selected = null;
 
-function createGameObject(mesh, script) {
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
+function createObject(mesh) {
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
 
-    const obj = {
-        mesh,
-        script,
-        started:false
-    };
-
-    gameObjects.push(obj);
-    return obj;
+  const obj = { mesh, script:null, started:false };
+  objects.push(obj);
+  return obj;
 }
 
 /* =====================
-   SCRIPTING SYSTEM
+   MODELS
 ===================== */
 
-class SpinScript {
-    start(obj) {}
-    update(obj, dt) {
-        obj.mesh.rotation.y += dt;
-    }
-}
+function spawn(type) {
+  let geo;
+  if (type === "cube") geo = new THREE.BoxGeometry();
+  if (type === "sphere") geo = new THREE.SphereGeometry(0.5, 24, 24);
+  if (type === "cylinder") geo = new THREE.CylinderGeometry(0.5,0.5,1,24);
 
-/* =====================
-   SPAWNING
-===================== */
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({ color:Math.random()*0xffffff })
+  );
 
-function spawnCube() {
-    const cube = new THREE.Mesh(
-        new THREE.BoxGeometry(1,1,1),
-        new THREE.MeshStandardMaterial({ color: Math.random()*0xffffff })
-    );
-    cube.position.set(
-        Math.random()*6 - 3,
-        1,
-        Math.random()*6 - 3
-    );
-
-    createGameObject(cube, new SpinScript());
+  mesh.position.set(Math.random()*4-2, 1, Math.random()*4-2);
+  createObject(mesh);
 }
 
 function resetScene() {
-    gameObjects.forEach(o => scene.remove(o.mesh));
-    gameObjects.length = 0;
+  objects.forEach(o => scene.remove(o.mesh));
+  objects.length = 0;
+  selected = null;
 }
+
+/* =====================
+   SCRIPT EDITOR
+===================== */
+
+function applyScript() {
+  if (!selected) return alert("No object selected!");
+
+  try {
+    const code = document.getElementById("scriptCode").value;
+    const ScriptClass = new Function(code + "; return Script;")();
+    selected.script = new ScriptClass();
+    selected.started = false;
+  } catch (e) {
+    alert("Script Error:\n" + e.message);
+  }
+}
+
+/* =====================
+   OBJECT SELECTION
+===================== */
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+addEventListener("mousedown", e => {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects(objects.map(o=>o.mesh));
+  if (hits.length) {
+    if (selected) selected.mesh.material.emissive.set(0x000000);
+    selected = objects.find(o => o.mesh === hits[0].object);
+    selected.mesh.material.emissive.set(0x222222);
+  }
+});
 
 /* =====================
    CAMERA CONTROLS
 ===================== */
 
-let keys = {};
-let yaw = 0, pitch = 0;
-
-addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-addEventListener("click", () => document.body.requestPointerLock());
-addEventListener("mousemove", e => {
-    if (document.pointerLockElement) {
-        yaw -= e.movementX * 0.002;
-        pitch -= e.movementY * 0.002;
-        pitch = Math.max(-1.5, Math.min(1.5, pitch));
-    }
+let keys = {}, yaw=0, pitch=0;
+addEventListener("keydown", e=>keys[e.key.toLowerCase()]=true);
+addEventListener("keyup", e=>keys[e.key.toLowerCase()]=false);
+addEventListener("click", ()=>document.body.requestPointerLock());
+addEventListener("mousemove", e=>{
+  if (document.pointerLockElement) {
+    yaw -= e.movementX*0.002;
+    pitch -= e.movementY*0.002;
+    pitch = Math.max(-1.5, Math.min(1.5, pitch));
+  }
 });
 
 /* =====================
-   GAME LOOP
+   LOOP
 ===================== */
 
-let lastTime = performance.now();
+let last = performance.now();
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt = (t-last)/1000; last=t;
 
-function loop(time) {
-    requestAnimationFrame(loop);
-    const dt = (time - lastTime) / 1000;
-    lastTime = time;
+  camera.rotation.order="YXZ";
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
 
-    camera.rotation.order = "YXZ";
-    camera.rotation.y = yaw;
-    camera.rotation.x = pitch;
+  const sp=6*dt;
+  if(keys.w) camera.translateZ(-sp);
+  if(keys.s) camera.translateZ(sp);
+  if(keys.a) camera.translateX(-sp);
+  if(keys.d) camera.translateX(sp);
 
-    const speed = 6 * dt;
-    if (keys["w"]) camera.translateZ(-speed);
-    if (keys["s"]) camera.translateZ(speed);
-    if (keys["a"]) camera.translateX(-speed);
-    if (keys["d"]) camera.translateX(speed);
-
-    for (const obj of gameObjects) {
-        if (!obj.started) {
-            obj.script?.start(obj);
-            obj.started = true;
-        }
-        obj.script?.update(obj, dt);
+  for(const o of objects){
+    if(o.script){
+      if(!o.started){ o.script.start?.(o); o.started=true; }
+      o.script.update?.(o,dt);
     }
+  }
 
-    renderer.render(scene, camera);
+  renderer.render(scene,camera);
 }
-
-loop(lastTime);
+loop(last);
 
 /* =====================
-   RESIZE
+   UI
 ===================== */
 
-addEventListener("resize", () => {
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelector(`.tab[onclick*="${name}"]`).classList.add("active");
+  document.getElementById(name).classList.add("active");
+}
+
+addEventListener("resize", ()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
 });
 </script>
 </body>
