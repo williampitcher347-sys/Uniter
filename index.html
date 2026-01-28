@@ -1,177 +1,140 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Block Game</title>
+<title>Code Engine</title>
 <style>
-body { margin:0; overflow:hidden; background:#1e1e1e; font-family:Arial }
-#ui {
-  position:fixed; top:10px; left:10px;
-  background:rgba(0,0,0,0.6);
-  color:white; padding:10px;
-  border-radius:6px; font-size:14px;
+body {
+  margin:0;
+  overflow:hidden;
+  font-family: monospace;
+  background:#1e1e1e;
+}
+#editor {
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:40%;
+  background:#1e1e1e;
+  color:#d4d4d4;
+  display:flex;
+  flex-direction:column;
+}
+#toolbar {
+  padding:6px;
+  background:#333;
 }
 button {
-  background:#0e639c; color:white;
-  border:none; padding:6px 10px;
-  border-radius:4px; cursor:pointer;
+  background:#0e639c;
+  color:white;
+  border:none;
+  padding:5px 10px;
+  margin-right:6px;
+  cursor:pointer;
+}
+textarea {
+  flex:1;
+  background:#1e1e1e;
+  color:#d4d4d4;
+  border:none;
+  resize:none;
+  padding:10px;
+  font-size:14px;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">
-  <button onclick="play()">▶ Play</button>
-  <span id="state">Editor</span><br><br>
-  WASD – Move<br>
-  SPACE – Jump
+<div id="editor">
+  <div id="toolbar">
+    <button onclick="run()">▶ Run Script</button>
+    <span>Language: JavaScript (Engine API)</span>
+  </div>
+  <textarea id="code">
+// Example Engine Script
+
+// Camera
+camera.position.set(0, 5, 10);
+camera.lookAt(0,0,0);
+
+// Light
+const light = new Light(10, 20, 10);
+
+// Baseplate
+const base = new Block(0, -0.5, 0, 20, 1, 20, 0x3a8f3a);
+
+// Floating block
+const box = new Block(0, 2, 0, 2, 2, 2, 0xff5555);
+  </textarea>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 
 <script>
-/* ================= ENGINE ================= */
+/* ========== ENGINE CORE ========== */
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // blue sky
+let scene, camera, renderer;
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
+function init(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-document.body.appendChild(renderer.domElement);
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 
-/* LIGHT */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 1);
-sun.position.set(20, 30, 10);
-sun.castShadow = true;
-scene.add(sun);
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight * 0.6);
+  document.body.appendChild(renderer.domElement);
 
-/* BASEPLATE (GRASS) */
-const ground = new THREE.Mesh(
-  new THREE.BoxGeometry(60, 1, 60),
-  new THREE.MeshStandardMaterial({ color:0x3a8f3a })
-);
-ground.position.y = -0.5;
-ground.receiveShadow = true;
-scene.add(ground);
-
-/* ================= OBJECTS ================= */
-
-const objects = [];
-let playing = false;
-
-/* PLAYER */
-const player = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1,1),
-  new THREE.MeshStandardMaterial({ color:0xff5555 })
-);
-player.position.set(0,1,0);
-player.castShadow = true;
-scene.add(player);
-
-/* COINS */
-function makeCoin(x,z){
-  const c = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5,0.5,0.5),
-    new THREE.MeshStandardMaterial({ color:0xffd700 })
-  );
-  c.position.set(x,1.2,z);
-  c.collected = false;
-  scene.add(c);
-  objects.push(c);
-}
-makeCoin(5,0);
-makeCoin(10,2);
-
-/* GOAL */
-const goal = new THREE.Mesh(
-  new THREE.BoxGeometry(1,2,1),
-  new THREE.MeshStandardMaterial({ color:0x00ff00 })
-);
-goal.position.set(15,1,0);
-scene.add(goal);
-
-/* ================= INPUT ================= */
-
-const keys = {};
-addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-/* ================= PLAYER LOGIC ================= */
-
-let velY = 0;
-let grounded = false;
-const speed = 6;
-const jump = 9;
-
-/* ================= PLAY ================= */
-
-function play(){
-  playing = true;
-  document.getElementById("state").textContent = "Playing";
+  animate();
 }
 
-/* ================= LOOP ================= */
-
-let last = performance.now();
-function loop(t){
-  requestAnimationFrame(loop);
-  const dt = (t - last) / 1000;
-  last = t;
-
-  if (playing) {
-    /* MOVE */
-    if (keys.w) player.position.z -= speed * dt;
-    if (keys.s) player.position.z += speed * dt;
-    if (keys.a) player.position.x -= speed * dt;
-    if (keys.d) player.position.x += speed * dt;
-
-    /* GRAVITY */
-    velY -= 25 * dt;
-    player.position.y += velY * dt;
-
-    if (player.position.y <= 1) {
-      player.position.y = 1;
-      velY = 0;
-      grounded = true;
-    }
-
-    /* JUMP */
-    if (keys[" "] && grounded) {
-      velY = jump;
-      grounded = false;
-    }
-
-    /* COINS */
-    objects.forEach(c => {
-      if (!c.collected) {
-        c.rotation.y += dt * 3;
-        if (player.position.distanceTo(c.position) < 1) {
-          c.visible = false;
-          c.collected = true;
-          console.log("Coin!");
-        }
-      }
-    });
-
-    /* GOAL */
-    if (player.position.distanceTo(goal.position) < 1.5) {
-      alert("YOU WIN!");
-      playing = false;
-    }
-  }
-
-  /* CAMERA FOLLOW */
-  const camPos = player.position.clone().add(new THREE.Vector3(0,3,6));
-  camera.position.lerp(camPos, 0.15);
-  camera.lookAt(player.position);
-
+function animate(){
+  requestAnimationFrame(animate);
   renderer.render(scene, camera);
 }
-loop();
+
+/* ========== ENGINE API ========== */
+
+class Block {
+  constructor(x,y,z,w,h,d,color=0xffffff){
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w,h,d),
+      new THREE.MeshStandardMaterial({color})
+    );
+    mesh.position.set(x,y,z);
+    scene.add(mesh);
+    return mesh;
+  }
+}
+
+class Light {
+  constructor(x,y,z){
+    const a = new THREE.AmbientLight(0xffffff,0.6);
+    const d = new THREE.DirectionalLight(0xffffff,1);
+    d.position.set(x,y,z);
+    scene.add(a);
+    scene.add(d);
+  }
+}
+
+/* ========== SCRIPT RUNNER ========== */
+
+function run(){
+  // Clear scene
+  while(scene.children.length > 0){
+    scene.remove(scene.children[0]);
+  }
+
+  try {
+    new Function(document.getElementById("code").value)();
+  } catch(e){
+    alert("Script Error:\n" + e.message);
+  }
+}
+
+init();
+run();
 </script>
 
 </body>
