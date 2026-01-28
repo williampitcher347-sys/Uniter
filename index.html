@@ -1,77 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Web Game Engine</title>
+<title>UNITER BY WILL</title>
 <style>
-body{margin:0;overflow:hidden;background:#0e0e0e;color:white;font-family:Arial}
-#panel{
- position:fixed;top:10px;left:10px;width:320px;
- background:rgba(15,15,15,.95);border-radius:8px;padding:10px
+body{margin:0;overflow:hidden;background:#000;font-family:Arial}
+
+/* TOP BAR */
+#topbar{
+ position:fixed;top:0;left:0;right:0;height:40px;
+ background:#1b1b1b;color:white;
+ display:flex;align-items:center;padding:0 10px;z-index:10
 }
-#workspace{
- max-height:150px;overflow:auto;border:1px solid #333;
- padding:5px;margin-top:6px
+#topbar button{margin-right:8px}
+
+/* LEFT WORKSPACE */
+#workspacePanel{
+ position:fixed;top:40px;left:0;width:220px;bottom:80px;
+ background:#141414;color:white;padding:6px;overflow:auto
 }
-.item{padding:3px;cursor:pointer}
-.item.selected{background:#2a7cff}
-button{width:100%;margin-top:6px;padding:6px;background:#2a7cff;border:0;color:white;border-radius:4px}
-textarea{width:100%;height:160px;background:#111;color:#0f0;border:1px solid #333;font-family:monospace;font-size:12px}
-.tab{display:inline-block;padding:5px 8px;background:#222;border-radius:4px;cursor:pointer}
-.tab.active{background:#2a7cff}
-.page{display:none;margin-top:6px}
-.page.active{display:block}
+.item{padding:4px;cursor:pointer}
+.item.sel{background:#2a7cff}
+
+/* RIGHT SCRIPT */
+#scriptPanel{
+ position:fixed;top:40px;right:0;width:320px;bottom:80px;
+ background:#141414;color:white;padding:6px
+}
+textarea{
+ width:100%;height:100%;background:#0e0e0e;color:#0f0;
+ border:1px solid #333;font-family:monospace;font-size:12px
+}
+
+/* BOTTOM BAR */
+#bottombar{
+ position:fixed;left:0;right:0;bottom:0;height:80px;
+ background:#1b1b1b;color:white;
+ display:flex;align-items:center;justify-content:center;gap:10px
+}
+.tool{padding:10px 14px;background:#333;cursor:pointer}
+.tool.active{background:#2a7cff}
+
+button{background:#2a7cff;border:0;color:white;padding:6px 10px;border-radius:4px}
 </style>
 </head>
 <body>
 
-<div id="panel">
- <div>
-  <span class="tab active" onclick="tab('editor')">Editor</span>
-  <span class="tab" onclick="tab('models')">Models</span>
-  <span class="tab" onclick="tab('files')">Files</span>
- </div>
+<div id="topbar">
+ <button onclick="play()">▶ Play</button>
+ <button onclick="stop()">⏹ Stop</button>
+</div>
 
- <div id="editor" class="page active">
-  <b>Workspace</b>
-  <div id="workspace"></div>
-  <b>Script</b>
-  <textarea id="code">
+<div id="workspacePanel">
+ <b>Workspace</b>
+ <div id="workspace"></div>
+</div>
+
+<div id="scriptPanel">
+ <b>Script</b>
+ <textarea id="code">
 class Script{
  start(o){}
- update(o,dt){
-  o.mesh.rotation.y+=dt;
- }
+ update(o,dt){}
 }
-  </textarea>
-  <button onclick="applyScript()">Apply Script</button>
- </div>
+ </textarea>
+</div>
 
- <div id="models" class="page">
-  <button onclick="spawn('cube')">Cube</button>
-  <button onclick="spawn('sphere')">Sphere</button>
-  <button onclick="spawn('cylinder')">Cylinder</button>
- </div>
-
- <div id="files" class="page">
-  <button onclick="saveScene()">Save Scene</button>
-  <input type="file" id="loadFile" accept=".json" />
-  <button onclick="loadScene()">Load Scene</button>
-  <hr>
-  <input type="file" id="assetUpload" accept=".glb,.gltf" />
- </div>
+<div id="bottombar">
+ <div class="tool active" onclick="setTool('move')">Move</div>
+ <div class="tool" onclick="setTool('rotate')">Rotate</div>
+ <div class="tool" onclick="setTool('scale')">Scale</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* ENGINE CORE */
+/* CORE */
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0e0e0e);
+
+/* SKYBOX */
+scene.background=new THREE.CubeTextureLoader().load([
+ "https://threejs.org/examples/textures/cube/skybox/px.jpg",
+ "https://threejs.org/examples/textures/cube/skybox/nx.jpg",
+ "https://threejs.org/examples/textures/cube/skybox/py.jpg",
+ "https://threejs.org/examples/textures/cube/skybox/ny.jpg",
+ "https://threejs.org/examples/textures/cube/skybox/pz.jpg",
+ "https://threejs.org/examples/textures/cube/skybox/nz.jpg"
+]);
 
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,1000);
-camera.position.set(0,4,8);
+camera.position.set(0,6,10);
 
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
@@ -87,153 +105,116 @@ scene.add(new THREE.AmbientLight(0x404040));
 
 /* PLATFORM */
 const platform=new THREE.Mesh(
- new THREE.BoxGeometry(30,1,30),
- new THREE.MeshStandardMaterial({color:0x2b2b2b})
+ new THREE.BoxGeometry(40,1,40),
+ new THREE.MeshStandardMaterial({color:0x2d2d2d})
 );
-platform.position.y=-.5;
+platform.position.y=-0.5;
 platform.receiveShadow=true;
 scene.add(platform);
 
-/* OBJECT SYSTEM */
+/* OBJECTS */
 const objects=[];
 let selected=null;
+let tool="move";
+let playing=false;
 
-function addObject(mesh,type="custom"){
- mesh.castShadow=mesh.receiveShadow=true;
+function addCube(){
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(),
+  new THREE.MeshStandardMaterial({color:Math.random()*0xffffff})
+ );
+ mesh.position.y=1;
+ mesh.castShadow=true;
  scene.add(mesh);
- const obj={mesh,type,scriptCode:"",script:null,started:false};
- objects.push(obj);
- refreshWorkspace();
- return obj;
+ const o={mesh,script:null,code:"",started:false};
+ objects.push(o);
+ refresh();
 }
 
-/* MODELS */
-function spawn(t){
- let geo;
- if(t==="cube")geo=new THREE.BoxGeometry();
- if(t==="sphere")geo=new THREE.SphereGeometry(.5,24,24);
- if(t==="cylinder")geo=new THREE.CylinderGeometry(.5,.5,1,24);
- const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:Math.random()*0xffffff}));
- mesh.position.set(Math.random()*4-2,1,Math.random()*4-2);
- addObject(mesh,t);
-}
+/* DEFAULT OBJECT */
+addCube();
 
 /* WORKSPACE */
-function refreshWorkspace(){
+function refresh(){
  const w=document.getElementById("workspace");
  w.innerHTML="";
- objects.forEach((o,i)=>{
+ objects.forEach(o=>{
   const d=document.createElement("div");
-  d.className="item"+(o===selected?" selected":"");
-  d.textContent=o.type+"_"+i;
+  d.className="item"+(o===selected?" sel":"");
+  d.textContent="GameObject";
   d.onclick=()=>select(o);
   w.appendChild(d);
  });
 }
 function select(o){
  selected=o;
- document.getElementById("code").value=o.scriptCode||document.getElementById("code").value;
- refreshWorkspace();
+ document.getElementById("code").value=o.code||document.getElementById("code").value;
+ refresh();
 }
 
-/* SCRIPTING */
+/* SCRIPT */
 function applyScript(){
- if(!selected)return alert("No object selected");
- try{
-  const c=document.getElementById("code").value;
-  const C=new Function(c+";return Script;")();
-  selected.script=new C();
-  selected.scriptCode=c;
-  selected.started=false;
- }catch(e){alert(e.message)}
+ if(!selected)return;
+ const c=document.getElementById("code").value;
+ const C=new Function(c+";return Script;")();
+ selected.script=new C();
+ selected.code=c;
+ selected.started=false;
 }
 
-/* SAVE / LOAD */
-function saveScene(){
- const data=objects.map(o=>({
-  type:o.type,
-  pos:o.mesh.position.toArray(),
-  rot:o.mesh.rotation.toArray(),
-  scale:o.mesh.scale.toArray(),
-  script:o.scriptCode
- }));
- const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
- const a=document.createElement("a");
- a.href=URL.createObjectURL(blob);
- a.download="scene.json";
- a.click();
+/* TOOLS */
+function setTool(t){
+ tool=t;
+ document.querySelectorAll(".tool").forEach(e=>e.classList.remove("active"));
+ event.target.classList.add("active");
 }
 
-function loadScene(){
- const f=document.getElementById("loadFile").files[0];
- if(!f)return;
- const r=new FileReader();
- r.onload=()=>{
-  objects.forEach(o=>scene.remove(o.mesh));
-  objects.length=0;
-  JSON.parse(r.result).forEach(d=>{
-   spawn(d.type);
-   const o=objects.at(-1);
-   o.mesh.position.fromArray(d.pos);
-   o.mesh.rotation.fromArray(d.rot);
-   o.mesh.scale.fromArray(d.scale);
-   if(d.script){
-    document.getElementById("code").value=d.script;
-    select(o); applyScript();
-   }
-  });
- };
- r.readAsText(f);
-}
-
-/* ASSET UPLOAD */
-document.getElementById("assetUpload").onchange=e=>{
- const file=e.target.files[0];
- if(!file)return;
- const loader=new THREE.GLTFLoader();
- loader.load(URL.createObjectURL(file),g=>{
-  const model=g.scene;
-  model.position.set(0,1,0);
-  addObject(model,"asset");
- });
-};
-
-/* CAMERA */
-let keys={},yaw=0,pitch=0;
-addEventListener("keydown",e=>keys[e.key]=1);
-addEventListener("keyup",e=>keys[e.key]=0);
+/* MOVE TOOL */
+let dragging=false;
+addEventListener("mousedown",e=>{
+ if(!selected||playing)return;
+ dragging=true;
+});
+addEventListener("mouseup",()=>dragging=false);
 addEventListener("mousemove",e=>{
- if(document.pointerLockElement){
-  yaw-=e.movementX*.002;
-  pitch=Math.max(-1.5,Math.min(1.5,pitch-e.movementY*.002));
+ if(dragging&&tool==="move"&&!playing){
+  selected.mesh.position.x+=e.movementX*0.02;
+  selected.mesh.position.z-=e.movementY*0.02;
  }
 });
-addEventListener("click",()=>document.body.requestPointerLock());
+
+/* PLAY MODE */
+function play(){
+ playing=true;
+ applyScript();
+ document.exitPointerLock();
+}
+function stop(){
+ playing=false;
+}
 
 /* LOOP */
 let last=performance.now();
 (function loop(t){
  requestAnimationFrame(loop);
  const dt=(t-last)/1000;last=t;
- camera.rotation.set(pitch,yaw,0,"YXZ");
- if(keys.w)camera.translateZ(-6*dt);
- if(keys.s)camera.translateZ(6*dt);
- if(keys.a)camera.translateX(-6*dt);
- if(keys.d)camera.translateX(6*dt);
- objects.forEach(o=>{
-  if(o.script){
-   if(!o.started){o.script.start?.(o);o.started=true}
-   o.script.update?.(o,dt);
-  }
- });
+
+ if(playing){
+  objects.forEach(o=>{
+   if(o.script){
+    if(!o.started){o.script.start?.(o);o.started=true;}
+    o.script.update?.(o,dt);
+   }
+  });
+ }
+
  renderer.render(scene,camera);
 })();
-function tab(n){
- document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
- document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
- document.querySelector(`.tab[onclick*="${n}"]`).classList.add("active");
- document.getElementById(n).classList.add("active");
-}
+addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
 </script>
 </body>
 </html>
