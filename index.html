@@ -9,30 +9,30 @@ body {
   margin:0;
   overflow:hidden;
   font-family: Arial, Helvetica, sans-serif;
-  background:#2b2b2b;
+  background:#1e1e1e;
 }
 
 /* TOP BAR */
 #topbar {
   position:fixed;
   top:0; left:0; right:0;
-  height:40px;
-  background:#3c3c3c;
-  color:#eee;
+  height:42px;
+  background:#2d2d30;
+  color:#ddd;
   display:flex;
   align-items:center;
-  padding:0 10px;
   gap:8px;
+  padding:0 10px;
   z-index:10;
 }
 
 /* LEFT PANEL */
 #left {
   position:fixed;
-  top:40px; left:0; bottom:0;
+  top:42px; left:0; bottom:0;
   width:220px;
   background:#252526;
-  color:#ddd;
+  color:#ccc;
   padding:8px;
   overflow:auto;
 }
@@ -40,32 +40,39 @@ body {
 /* RIGHT PANEL */
 #right {
   position:fixed;
-  top:40px; right:0; bottom:0;
-  width:320px;
+  top:42px; right:0; bottom:0;
+  width:340px;
   background:#252526;
-  color:#ddd;
+  color:#ccc;
   padding:8px;
 }
 
-/* PANELS */
-h3 {
-  margin:6px 0;
-  font-size:13px;
-  color:#c8c8c8;
+/* SHORTCUT PANEL */
+#shortcuts {
+  position:fixed;
+  bottom:10px; left:10px;
+  background:rgba(37,37,38,0.95);
+  color:#ccc;
+  padding:10px;
+  border-radius:6px;
+  font-size:12px;
+  line-height:1.6;
 }
+
+/* UI */
+h3 { margin:6px 0; font-size:13px; color:#9cdcfe; }
 
 .item {
   padding:5px;
   border-radius:4px;
   cursor:pointer;
 }
-.item:hover { background:#333 }
-.item.sel { background:#007acc }
+.item:hover { background:#333; }
+.item.sel { background:#007acc; }
 
-/* SCRIPT */
 textarea {
   width:100%;
-  height:200px;
+  height:220px;
   background:#1e1e1e;
   color:#d4d4d4;
   border:1px solid #333;
@@ -73,7 +80,6 @@ textarea {
   font-size:12px;
 }
 
-/* BUTTONS */
 button {
   background:#0e639c;
   border:none;
@@ -82,15 +88,19 @@ button {
   border-radius:3px;
   cursor:pointer;
 }
-button:hover { background:#1177bb }
+button:hover { background:#1177bb; }
 </style>
 </head>
 
 <body>
 
 <div id="topbar">
-  <button onclick="play()">Play</button>
-  <button onclick="stop()">Stop</button>
+  <button onclick="play()">▶ Play</button>
+  <button onclick="stop()">⏹ Stop</button>
+  <button onclick="addCube()">➕ Cube</button>
+  <button onclick="addSphere()">➕ Sphere</button>
+  <button onclick="deleteSelected()">🗑 Delete</button>
+  <button onclick="resetCamera()">🎥 Reset Camera</button>
   <input type="file" id="upload" accept=".glb,.gltf">
   <span id="mode">Editor</span>
 </div>
@@ -102,6 +112,7 @@ button:hover { background:#1177bb }
 
 <div id="right">
   <h3>Script (JavaScript)</h3>
+  <div style="font-size:12px;color:#aaa">Attached Script: Script</div>
   <textarea id="script">
 class Script {
   start(o) {
@@ -116,45 +127,51 @@ class Script {
   <button onclick="applyScript()">Apply Script</button>
 </div>
 
+<div id="shortcuts">
+<b>Shortcuts</b><br>
+W A S D – Move Camera<br>
+Right Mouse – Look<br>
+M – Lock / Unlock Mouse<br>
+Left Click – Select Object<br>
+Play – Run Scripts
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
 /* SCENE */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xaaaaaa);
+scene.background = new THREE.Color(0x87ceeb); // blue sky
 
 /* CAMERA */
-const camera = new THREE.PerspectiveCamera(
-  70,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 camera.position.set(0, 6, 12);
 
 /* RENDERER */
 const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 /* LIGHTING */
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-
 const sun = new THREE.DirectionalLight(0xffffff, 1);
-sun.position.set(10, 20, 10);
+sun.position.set(20, 30, 10);
 sun.castShadow = true;
 scene.add(sun);
 
-/* BASEPLATE */
-const base = new THREE.Mesh(
-  new THREE.BoxGeometry(60, 1, 60),
-  new THREE.MeshStandardMaterial({ color:0x6b6b6b })
+/* GRASS BASEPLATE */
+const grass = new THREE.Mesh(
+  new THREE.BoxGeometry(80, 1, 80),
+  new THREE.MeshStandardMaterial({
+    color:0x3a8f3a,
+    roughness:1
+  })
 );
-base.position.y = -0.5;
-base.receiveShadow = true;
-scene.add(base);
+grass.position.y = -0.5;
+grass.receiveShadow = true;
+scene.add(grass);
 
 /* OBJECT SYSTEM */
 const objects = [];
@@ -170,22 +187,35 @@ function addObject(mesh, name) {
   return o;
 }
 
-/* DEFAULT CUBE */
-addObject(
-  new THREE.Mesh(
-    new THREE.BoxGeometry(1,1,1),
-    new THREE.MeshStandardMaterial({ color:0xff5555 })
-  ),
-  "Cube"
-);
+function addCube() {
+  addObject(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(1,1,1),
+      new THREE.MeshStandardMaterial({ color:0xff5555 })
+    ),
+    "Cube"
+  );
+}
 
-/* WORKSPACE UI */
+function addSphere() {
+  addObject(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 32, 32),
+      new THREE.MeshStandardMaterial({ color:0x55aaff })
+    ),
+    "Sphere"
+  );
+}
+
+addCube();
+
+/* WORKSPACE */
 function refreshWorkspace() {
   const w = document.getElementById("workspace");
   w.innerHTML = "";
   objects.forEach(o => {
     const d = document.createElement("div");
-    d.className = "item" + (o === selected ? " sel" : "");
+    d.className = "item" + (o===selected ? " sel" : "");
     d.textContent = o.name;
     d.onclick = () => select(o);
     w.appendChild(d);
@@ -198,72 +228,73 @@ function select(o) {
   refreshWorkspace();
 }
 
-/* SCRIPT SYSTEM */
+function deleteSelected() {
+  if (!selected) return;
+  scene.remove(selected.mesh);
+  objects.splice(objects.indexOf(selected), 1);
+  selected = null;
+  refreshWorkspace();
+}
+
+/* SCRIPT */
 function applyScript() {
   if (!selected) return;
   const code = document.getElementById("script").value;
-  try {
-    const ScriptClass = new Function(code + "; return Script;")();
-    selected.script = new ScriptClass();
-    selected.code = code;
-    selected.started = false;
-  } catch (e) {
-    alert("Script error:\n" + e.message);
-  }
+  const ScriptClass = new Function(code + "; return Script;")();
+  selected.script = new ScriptClass();
+  selected.code = code;
+  selected.started = false;
 }
 
-/* MODEL UPLOAD (WORKING) */
-document.getElementById("upload").addEventListener("change", e => {
+/* MODEL UPLOAD */
+document.getElementById("upload").onchange = e => {
   const file = e.target.files[0];
   if (!file) return;
-
-  const loader = new THREE.GLTFLoader();
-  loader.load(
-    URL.createObjectURL(file),
-    gltf => {
-      const model = gltf.scene;
-      model.position.y = 0;
-      addObject(model, file.name);
-    },
-    undefined,
-    err => alert("Failed to load model")
-  );
-});
+  new THREE.GLTFLoader().load(URL.createObjectURL(file), gltf => {
+    addObject(gltf.scene, file.name);
+  });
+};
 
 /* CAMERA CONTROLS */
 const keys = {};
-let rightMouse = false;
+let mouseLocked = false;
 let yaw = 0, pitch = 0;
 
-window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
-renderer.domElement.addEventListener("mousedown", e => {
-  if (e.button === 2) rightMouse = true;
+addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === "m") toggleMouse();
 });
-window.addEventListener("mouseup", () => rightMouse = false);
+addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-window.addEventListener("mousemove", e => {
-  if (!rightMouse) return;
+function toggleMouse() {
+  if (mouseLocked) document.exitPointerLock();
+  else renderer.domElement.requestPointerLock();
+}
+
+document.addEventListener("pointerlockchange", () => {
+  mouseLocked = document.pointerLockElement === renderer.domElement;
+});
+
+addEventListener("mousemove", e => {
+  if (!mouseLocked) return;
   yaw -= e.movementX * 0.002;
   pitch -= e.movementY * 0.002;
   pitch = Math.max(-1.5, Math.min(1.5, pitch));
 });
 
-/* LOOP */
+/* PLAY LOOP */
 let last = performance.now();
-function loop(t) {
+(function loop(t){
   requestAnimationFrame(loop);
-  const dt = (t - last) / 1000;
+  const dt = (t-last)/1000;
   last = t;
 
   camera.rotation.set(pitch, yaw, 0, "YXZ");
 
-  if (keys.w) camera.translateZ(-10 * dt);
-  if (keys.s) camera.translateZ(10 * dt);
-  if (keys.a) camera.translateX(-10 * dt);
-  if (keys.d) camera.translateX(10 * dt);
+  if (keys.w) camera.translateZ(-10*dt);
+  if (keys.s) camera.translateZ(10*dt);
+  if (keys.a) camera.translateX(-10*dt);
+  if (keys.d) camera.translateX(10*dt);
 
   if (playing) {
     objects.forEach(o => {
@@ -278,18 +309,7 @@ function loop(t) {
   }
 
   renderer.render(scene, camera);
-}
-loop();
-
-/* PLAY / STOP */
-function play() {
-  playing = true;
-  document.getElementById("mode").textContent = "Play";
-}
-function stop() {
-  playing = false;
-  document.getElementById("mode").textContent = "Editor";
-}
+})();
 </script>
 
 </body>
