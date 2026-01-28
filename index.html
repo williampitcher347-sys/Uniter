@@ -2,9 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Web Game Engine</title>
+<title>UNITER ENGINE</title>
 <style>
-body{margin:0;overflow:hidden;font-family:Arial;background:#000}
+body{margin:0;overflow:hidden;background:#000;font-family:Arial}
 
 /* TOP BAR */
 #topbar{
@@ -12,10 +12,11 @@ body{margin:0;overflow:hidden;font-family:Arial;background:#000}
  background:#1b1b1b;color:white;
  display:flex;align-items:center;padding:0 10px;z-index:10
 }
+#topbar button{margin-right:6px}
 
 /* LEFT */
 #workspacePanel{
- position:fixed;top:40px;left:0;width:220px;bottom:100px;
+ position:fixed;top:40px;left:0;width:220px;bottom:120px;
  background:#141414;color:white;padding:6px;overflow:auto
 }
 .item{padding:4px;cursor:pointer}
@@ -23,7 +24,7 @@ body{margin:0;overflow:hidden;font-family:Arial;background:#000}
 
 /* RIGHT */
 #scriptPanel{
- position:fixed;top:40px;right:0;width:320px;bottom:100px;
+ position:fixed;top:40px;right:0;width:320px;bottom:120px;
  background:#141414;color:white;padding:6px
 }
 textarea{
@@ -33,7 +34,7 @@ textarea{
 
 /* BOTTOM BAR */
 #bottombar{
- position:fixed;left:0;right:0;bottom:0;height:100px;
+ position:fixed;left:0;right:0;bottom:0;height:120px;
  background:#1b1b1b;color:white;
  display:flex;align-items:center;justify-content:center;gap:10px
 }
@@ -42,7 +43,7 @@ textarea{
 
 /* SHORTCUTS */
 #shortcuts{
- position:fixed;bottom:110px;left:10px;
+ position:fixed;bottom:130px;left:10px;
  background:rgba(20,20,20,.9);
  color:#aaa;font-size:12px;
  padding:8px;border-radius:6px
@@ -56,7 +57,9 @@ button{background:#2a7cff;border:0;color:white;padding:6px 10px;border-radius:4p
 <div id="topbar">
  <button onclick="play()">▶ Play</button>
  <button onclick="stop()">⏹ Stop</button>
- <span style="margin-left:10px" id="mouseState">Mouse: Unlocked (M)</span>
+ <button onclick="saveScene()">⬇ Download Scene</button>
+ <input type="file" id="upload" accept=".glb,.gltf" />
+ <span id="mouseState" style="margin-left:10px">Mouse: Unlocked (M)</span>
 </div>
 
 <div id="workspacePanel">
@@ -72,6 +75,7 @@ class Script{
  update(o,dt){}
 }
  </textarea>
+ <button onclick="applyScript()">Apply Script</button>
 </div>
 
 <div id="bottombar">
@@ -81,15 +85,16 @@ class Script{
 </div>
 
 <div id="shortcuts">
-<b>Shortcuts</b><br>
+<b>Controls</b><br>
 WASD – Move Camera<br>
 Right Click – Look<br>
-Click – Select Object<br>
-Q / E – Down / Up<br>
-M – Lock / Unlock Mouse
+Click – Select<br>
+Drag – Transform<br>
+M – Lock Mouse
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
 /* SCENE */
@@ -106,12 +111,15 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
 
+/* GRID */
+scene.add(new THREE.GridHelper(100,100));
+
 /* LIGHT */
+scene.add(new THREE.AmbientLight(0x404040));
 const sun=new THREE.DirectionalLight(0xffffff,1.2);
 sun.position.set(10,20,10);
 sun.castShadow=true;
 scene.add(sun);
-scene.add(new THREE.AmbientLight(0x404040));
 
 /* PLATFORM */
 const platform=new THREE.Mesh(
@@ -122,25 +130,25 @@ platform.position.y=-.5;
 platform.receiveShadow=true;
 scene.add(platform);
 
-/* OBJECTS */
+/* OBJECT SYSTEM */
 const objects=[];
 let selected=null;
+let tool="move";
 let playing=false;
 
 /* ADD OBJECT */
-function addCube(){
- const mesh=new THREE.Mesh(
-  new THREE.BoxGeometry(),
-  new THREE.MeshStandardMaterial({color:Math.random()*0xffffff})
- );
- mesh.position.y=1;
- mesh.castShadow=true;
+function addObject(mesh,name="Object"){
+ mesh.castShadow=mesh.receiveShadow=true;
  scene.add(mesh);
- const o={mesh,script:null,code:"",started:false};
+ const o={mesh,name,script:null,code:"",started:false};
  objects.push(o);
  refresh();
+ return o;
 }
-addCube();
+addObject(new THREE.Mesh(
+ new THREE.BoxGeometry(),
+ new THREE.MeshStandardMaterial({color:0xff4444})
+),"Cube");
 
 /* WORKSPACE */
 function refresh(){
@@ -149,7 +157,7 @@ function refresh(){
  objects.forEach(o=>{
   const d=document.createElement("div");
   d.className="item"+(o===selected?" sel":"");
-  d.textContent="GameObject";
+  d.textContent=o.name;
   d.onclick=()=>select(o);
   w.appendChild(d);
  });
@@ -170,56 +178,87 @@ function applyScript(){
  selected.started=false;
 }
 
-/* CAMERA CONTROLS */
-let keys={},yaw=0,pitch=0;
-let mouseLocked=false;
+/* UPLOAD MODEL */
+document.getElementById("upload").onchange=e=>{
+ const f=e.target.files[0];
+ if(!f)return;
+ const loader=new THREE.GLTFLoader();
+ loader.load(URL.createObjectURL(f),g=>{
+  const m=g.scene;
+  m.position.y=1;
+  addObject(m,f.name);
+ });
+};
+
+/* SAVE */
+function saveScene(){
+ const data=objects.map(o=>({
+  name:o.name,
+  pos:o.mesh.position.toArray(),
+  rot:o.mesh.rotation.toArray(),
+  scale:o.mesh.scale.toArray(),
+  script:o.code
+ }));
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="scene.json";
+ a.click();
+}
+
+/* INPUT */
+let keys={},yaw=0,pitch=0,mouseLocked=false;
 addEventListener("keydown",e=>{
  keys[e.key.toLowerCase()]=true;
- if(e.key.toLowerCase()==="m"){
-  toggleMouse();
- }
+ if(e.key.toLowerCase()==="m")toggleMouse();
 });
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
 function toggleMouse(){
- if(mouseLocked){
-  document.exitPointerLock();
-  mouseLocked=false;
- }else{
-  renderer.domElement.requestPointerLock();
-  mouseLocked=true;
- }
+ if(mouseLocked){document.exitPointerLock();mouseLocked=false;}
+ else{renderer.domElement.requestPointerLock();mouseLocked=true;}
  document.getElementById("mouseState").textContent=
   "Mouse: "+(mouseLocked?"Locked":"Unlocked")+" (M)";
 }
 
 addEventListener("mousemove",e=>{
- if(mouseLocked && !playing){
+ if(mouseLocked){
   yaw-=e.movementX*0.002;
   pitch=Math.max(-1.5,Math.min(1.5,pitch-e.movementY*0.002));
  }
 });
 
-/* SELECTION */
-const raycaster=new THREE.Raycaster();
-const mouse=new THREE.Vector2();
+/* SELECT + TRANSFORM */
+let dragging=false;
 renderer.domElement.addEventListener("mousedown",e=>{
- if(playing||mouseLocked&&e.button===2)return;
- mouse.x=(e.clientX/innerWidth)*2-1;
- mouse.y=-(e.clientY/innerHeight)*2+1;
- raycaster.setFromCamera(mouse,camera);
- const hits=raycaster.intersectObjects(objects.map(o=>o.mesh));
- if(hits.length){
-  if(selected)selected.mesh.material.emissive?.set(0x000000);
-  selected=objects.find(o=>o.mesh===hits[0].object);
-  selected.mesh.material.emissive=new THREE.Color(0x222222);
-  refresh();
+ if(e.button===0 && selected) dragging=true;
+});
+addEventListener("mouseup",()=>dragging=false);
+addEventListener("mousemove",e=>{
+ if(!dragging||!selected)return;
+ if(tool==="move"){
+  selected.mesh.position.x+=e.movementX*0.02;
+  selected.mesh.position.z-=e.movementY*0.02;
+ }
+ if(tool==="rotate"){
+  selected.mesh.rotation.y+=e.movementX*0.01;
+ }
+ if(tool==="scale"){
+  const s=1+e.movementY*0.01;
+  selected.mesh.scale.multiplyScalar(s);
  }
 });
 
-/* PLAY MODE */
-function play(){ playing=true; applyScript(); }
-function stop(){ playing=false; }
+/* TOOLS */
+function setTool(t){
+ tool=t;
+ document.querySelectorAll(".tool").forEach(b=>b.classList.remove("active"));
+ event.target.classList.add("active");
+}
+
+/* PLAY */
+function play(){playing=true;}
+function stop(){playing=false;}
 
 /* LOOP */
 let last=performance.now();
@@ -227,35 +266,23 @@ let last=performance.now();
  requestAnimationFrame(loop);
  const dt=(t-last)/1000;last=t;
 
- camera.rotation.order="YXZ";
- camera.rotation.set(pitch,yaw,0);
-
- if(!playing){
-  const sp=10*dt;
-  if(keys.w)camera.translateZ(-sp);
-  if(keys.s)camera.translateZ(sp);
-  if(keys.a)camera.translateX(-sp);
-  if(keys.d)camera.translateX(sp);
-  if(keys.q)camera.position.y-=sp;
-  if(keys.e)camera.position.y+=sp;
+ camera.rotation.set(pitch,yaw,0,"YXZ");
+ if(!mouseLocked){
+  if(keys.w)camera.translateZ(-10*dt);
+  if(keys.s)camera.translateZ(10*dt);
+  if(keys.a)camera.translateX(-10*dt);
+  if(keys.d)camera.translateX(10*dt);
  }
 
- if(playing){
-  objects.forEach(o=>{
-   if(o.script){
-    if(!o.started){o.script.start?.(o);o.started=true}
-    o.script.update?.(o,dt);
-   }
-  });
- }
+ objects.forEach(o=>{
+  if(o.script){
+   if(!o.started){o.script.start?.(o);o.started=true;}
+   if(playing)o.script.update?.(o,dt);
+  }
+ });
 
  renderer.render(scene,camera);
 })();
-addEventListener("resize",()=>{
- camera.aspect=innerWidth/innerHeight;
- camera.updateProjectionMatrix();
- renderer.setSize(innerWidth,innerHeight);
-});
 </script>
 </body>
 </html>
