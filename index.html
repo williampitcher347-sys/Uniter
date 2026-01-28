@@ -1,46 +1,110 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Web Engine v3</title>
+<title>Web Engine v4 – Roblox Style</title>
 
+<!-- =========================================================
+     STYLES
+========================================================= -->
 <style>
-body { margin:0; overflow:hidden; background:#1e1e1e; color:#ccc; font-family:Consolas }
-#topbar {
-  position:fixed; top:0; left:0; right:0; height:40px;
-  background:#2d2d30; display:flex; gap:6px; padding:6px; z-index:10;
+/* --- GLOBAL --- */
+body {
+  margin:0;
+  overflow:hidden;
+  background:#1e1e1e;
+  color:#ccc;
+  font-family: Consolas, monospace;
 }
-button { background:#0e639c; border:none; color:white; padding:5px 8px; cursor:pointer }
+
+/* --- TOP BAR --- */
+#topbar {
+  position:fixed;
+  top:0; left:0; right:0;
+  height:42px;
+  background:#2d2d30;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px;
+  z-index:10;
+}
+
+button {
+  background:#0e639c;
+  border:none;
+  color:white;
+  padding:5px 10px;
+  cursor:pointer;
+}
 button:hover { background:#1177bb }
 
-#left { position:fixed; top:40px; left:0; bottom:0; width:220px; background:#252526; padding:6px }
-#right { position:fixed; top:40px; right:0; bottom:0; width:360px; background:#252526; padding:6px; overflow:auto }
+/* --- PANELS --- */
+#left {
+  position:fixed;
+  top:42px; left:0; bottom:0;
+  width:260px;
+  background:#252526;
+  padding:6px;
+  overflow:auto;
+}
 
-.item { padding:4px; cursor:pointer }
+#right {
+  position:fixed;
+  top:42px; right:0; bottom:0;
+  width:380px;
+  background:#252526;
+  padding:6px;
+  overflow:auto;
+}
+
+/* --- HIERARCHY --- */
+.item {
+  padding:4px;
+  cursor:pointer;
+  user-select:none;
+}
 .item.sel { background:#007acc }
 
-h3 { color:#9cdcfe; margin:6px 0 }
+/* --- INSPECTOR --- */
+h3 { color:#9cdcfe; margin:8px 0 }
+.comp {
+  border:1px solid #333;
+  padding:6px;
+  margin-bottom:6px;
+}
 input, textarea {
-  width:100%; background:#1e1e1e; color:#ccc;
-  border:1px solid #333; margin-bottom:4px;
+  width:100%;
+  background:#1e1e1e;
+  color:#ccc;
+  border:1px solid #333;
 }
 textarea { height:200px }
-.comp { border:1px solid #333; padding:4px; margin-bottom:6px }
-.plus { cursor:pointer; color:#0af }
+.plus { color:#0af; cursor:pointer }
+
+/* --- DRAG VISUAL --- */
+.dragging {
+  opacity:0.6;
+}
 </style>
 </head>
 
 <body>
 
+<!-- =========================================================
+     UI
+========================================================= -->
 <div id="topbar">
-  <button onclick="addCube()">➕ Cube</button>
   <button onclick="play()">▶ Play</button>
   <button onclick="stop()">⏹ Stop</button>
+  <button onclick="createCube()">➕ Cube</button>
+  <button onclick="saveScene()">💾 Save</button>
+  <input type="file" id="loadScene" accept=".json">
   <span id="mode">Editor</span>
 </div>
 
 <div id="left">
-  <h3>Hierarchy</h3>
+  <h3>Workspace</h3>
   <div id="hierarchy"></div>
 </div>
 
@@ -49,153 +113,305 @@ textarea { height:200px }
   <div id="inspector"></div>
 </div>
 
+<!-- =========================================================
+     THREE.JS
+========================================================= -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 
 <script>
-/* ================= CORE ================= */
+/* =========================================================
+   ENGINE CORE
+========================================================= */
 
+/* ---------- SCENE ---------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
+/* ---------- CAMERA ---------- */
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 camera.position.set(0,6,12);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
+/* ---------- RENDERER ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
+/* ---------- LIGHTING ---------- */
 scene.add(new THREE.AmbientLight(0xffffff,0.4));
 const sun = new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(20,30,10);
+sun.castShadow = true;
 scene.add(sun);
 
-/* ================= OBJECT SYSTEM ================= */
+/* =========================================================
+   INSTANCE SYSTEM (ROBLOX STYLE)
+========================================================= */
 
-const objects=[];
-let selected=null;
-let playing=false;
+/*
+Instance structure:
+{
+  id,
+  name,
+  type,          // "Model", "Script", "Baseplate"
+  mesh,          // THREE.Mesh (if applicable)
+  parent,
+  children: [],
+  scriptCode,
+  scriptInstance
+}
+*/
 
-function makeObject(mesh,name){
-  scene.add(mesh);
-  const o={
+let instanceId = 0;
+const Workspace = [];
+
+/* ---------- CREATE INSTANCE ---------- */
+function createInstance(type, name) {
+  return {
+    id: instanceId++,
+    type,
     name,
-    mesh,
-    components:{
-      transform:true
-    },
-    script:null
+    mesh: null,
+    parent: null,
+    children: [],
+    scriptCode: "",
+    scriptInstance: null
   };
-  objects.push(o);
-  select(o);
-  refreshHierarchy();
 }
 
-function addCube(){
-  makeObject(new THREE.Mesh(
+/* ---------- ADD CHILD ---------- */
+function addChild(parent, child) {
+  child.parent = parent;
+  parent.children.push(child);
+}
+
+/* =========================================================
+   BASEPLATE (YOU CALLED THIS OUT — IT STAYS)
+========================================================= */
+
+const baseplate = createInstance("Baseplate","Baseplate");
+baseplate.mesh = new THREE.Mesh(
+  new THREE.BoxGeometry(80,1,80),
+  new THREE.MeshStandardMaterial({ color:0x3a8f3a })
+);
+baseplate.mesh.position.y = -0.5;
+baseplate.mesh.receiveShadow = true;
+scene.add(baseplate.mesh);
+Workspace.push(baseplate);
+
+/* =========================================================
+   OBJECT CREATION
+========================================================= */
+
+function createCube() {
+  const model = createInstance("Model","Cube");
+  model.mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1,1,1),
-    new THREE.MeshStandardMaterial({color:0xff5555})
-  ),"Cube");
-}
-addCube();
-
-/* ================= UI ================= */
-
-function refreshHierarchy(){
-  const h=document.getElementById("hierarchy");
-  h.innerHTML="";
-  objects.forEach(o=>{
-    const d=document.createElement("div");
-    d.className="item"+(o===selected?" sel":"");
-    d.textContent=o.name;
-    d.onclick=()=>select(o);
-    h.appendChild(d);
-  });
-}
-
-function select(o){
-  selected=o;
+    new THREE.MeshStandardMaterial({ color:0xff5555 })
+  );
+  model.mesh.castShadow = true;
+  scene.add(model.mesh);
+  Workspace.push(model);
+  select(model);
   refreshHierarchy();
-  refreshInspector();
 }
 
-/* ================= INSPECTOR ================= */
+/* =========================================================
+   SCRIPT SYSTEM (ROBLOX STYLE)
+========================================================= */
 
-function refreshInspector(){
-  const i=document.getElementById("inspector");
-  if(!selected){ i.innerHTML=""; return; }
+/*
+Script lifecycle:
+- editorUpdate()  → runs ALWAYS
+- update()        → runs in Play
+*/
 
-  const m=selected.mesh;
-  i.innerHTML=`
-<div class="comp">
-<b>Transform</b><br>
-X <input value="${m.position.x}" onchange="m.position.x=this.value">
-Y <input value="${m.position.y}" onchange="m.position.y=this.value">
-Z <input value="${m.position.z}" onchange="m.position.z=this.value">
-</div>
-
-<div class="comp">
-<b>Components</b>
-<div class="plus" onclick="addScript()">➕ Add Script</div>
-</div>
-`;
-
-  if(selected.script){
-    i.innerHTML+=`
-<div class="comp">
-<b>Script</b>
-<textarea id="script">${selected.script.code}</textarea>
-<button onclick="applyScript()">Apply</button>
-</div>
-`;
-  }
-}
-
-/* ================= SCRIPT COMPONENT ================= */
-
-function addScript(){
-  selected.script={
-    code:`class Script {
-  editorUpdate(o, dt){
+function defaultScript() {
+return `-- Script (Roblox-style, JS)
+class Script {
+  editorUpdate(self, dt) {
     // runs in editor
   }
 
-  update(o, dt){
+  update(self, dt) {
     // runs in play
   }
-}`
-  };
+}`;
+}
+
+/* =========================================================
+   SELECTION & HIERARCHY UI
+========================================================= */
+
+let selected = null;
+
+function refreshHierarchy() {
+  const h = document.getElementById("hierarchy");
+  h.innerHTML = "";
+  Workspace.forEach(i => drawInstance(i,h,0));
+}
+
+function drawInstance(inst, parent, depth) {
+  const d = document.createElement("div");
+  d.className = "item" + (inst === selected ? " sel":"");
+  d.style.paddingLeft = (depth*12)+"px";
+  d.textContent = inst.name;
+  d.onclick = () => select(inst);
+  parent.appendChild(d);
+
+  inst.children.forEach(c => drawInstance(c,parent,depth+1));
+}
+
+function select(inst) {
+  selected = inst;
+  refreshHierarchy();
   refreshInspector();
 }
 
-function applyScript(){
-  selected.script.code=document.getElementById("script").value;
-  try{
-    selected.script.instance=
-      new Function("camera",selected.script.code+";return Script;")(camera);
-  }catch(e){console.error(e);}
+/* =========================================================
+   INSPECTOR (TRANSFORM + SCRIPTS)
+========================================================= */
+
+function refreshInspector() {
+  const i = document.getElementById("inspector");
+  if(!selected){ i.innerHTML=""; return; }
+
+  let html = "";
+
+  /* ---- TRANSFORM ---- */
+  if(selected.mesh) {
+    const p = selected.mesh.position;
+    const r = selected.mesh.rotation;
+    const s = selected.mesh.scale;
+
+    html += `
+<div class="comp">
+<b>Transform</b><br>
+Pos <input value="${p.x}" onchange="selected.mesh.position.x=this.value">
+<input value="${p.y}" onchange="selected.mesh.position.y=this.value">
+<input value="${p.z}" onchange="selected.mesh.position.z=this.value"><br>
+Rot <input value="${r.x}" onchange="selected.mesh.rotation.x=this.value">
+<input value="${r.y}" onchange="selected.mesh.rotation.y=this.value">
+<input value="${r.z}" onchange="selected.mesh.rotation.z=this.value"><br>
+Scale <input value="${s.x}" onchange="selected.mesh.scale.x=this.value">
+<input value="${s.y}" onchange="selected.mesh.scale.y=this.value">
+<input value="${s.z}" onchange="selected.mesh.scale.z=this.value">
+</div>`;
+  }
+
+  /* ---- ADD SCRIPT ---- */
+  html += `
+<div class="comp">
+<b>Components</b><br>
+<span class="plus" onclick="addScript()">➕ Script</span>
+</div>`;
+
+  /* ---- SCRIPT EDITOR ---- */
+  if(selected.scriptCode) {
+    html += `
+<div class="comp">
+<b>Script</b>
+<textarea id="scriptArea">${selected.scriptCode}</textarea>
+<button onclick="applyScript()">Apply</button>
+</div>`;
+  }
+
+  i.innerHTML = html;
 }
 
-/* ================= EDITOR + PLAY LOOP ================= */
-
-function play(){
-  playing=true;
-  document.getElementById("mode").textContent="Play";
+function addScript() {
+  selected.scriptCode = defaultScript();
+  refreshInspector();
 }
 
-function stop(){
-  playing=false;
-  document.getElementById("mode").textContent="Editor";
+function applyScript() {
+  selected.scriptCode = document.getElementById("scriptArea").value;
+  try {
+    selected.scriptInstance =
+      new Function(selected.scriptCode + "; return Script;")();
+  } catch(e) {
+    console.error(e);
+  }
 }
 
-let last=performance.now();
+/* =========================================================
+   SAVE / LOAD (FULL WORKSPACE)
+========================================================= */
+
+function saveScene() {
+  const data = JSON.stringify(Workspace.map(serialize),null,2);
+  const blob = new Blob([data],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "scene.json";
+  a.click();
+}
+
+function serialize(inst) {
+  return {
+    name: inst.name,
+    type: inst.type,
+    pos: inst.mesh?.position.toArray(),
+    rot: inst.mesh?.rotation.toArray(),
+    scale: inst.mesh?.scale.toArray(),
+    script: inst.scriptCode,
+    children: inst.children.map(serialize)
+  };
+}
+
+/* =========================================================
+   PLAY LOOP
+========================================================= */
+
+let playing = false;
+
+function play() {
+  playing = true;
+  document.getElementById("mode").textContent = "Play";
+}
+
+function stop() {
+  playing = false;
+  document.getElementById("mode").textContent = "Editor";
+}
+
+/* =========================================================
+   CAMERA MOVEMENT (ALWAYS WORKS)
+========================================================= */
+
+const keys = {};
+let yaw=0,pitch=0;
+
+addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+renderer.domElement.onclick=()=>renderer.domElement.requestPointerLock();
+
+addEventListener("mousemove",e=>{
+  if(document.pointerLockElement!==renderer.domElement) return;
+  yaw-=e.movementX*0.002;
+  pitch-=e.movementY*0.002;
+});
+
+/* =========================================================
+   MAIN LOOP
+========================================================= */
+
+let last = performance.now();
 (function loop(t){
   requestAnimationFrame(loop);
-  const dt=(t-last)/1000; last=t;
+  const dt=(t-last)/1000;
+  last=t;
 
-  objects.forEach(o=>{
-    if(o.script?.instance){
-      if(!playing) o.script.instance.editorUpdate?.(o,dt);
-      if(playing) o.script.instance.update?.(o,dt);
+  camera.rotation.set(pitch,yaw,0,"YXZ");
+  if(keys.w) camera.translateZ(-10*dt);
+  if(keys.s) camera.translateZ(10*dt);
+  if(keys.a) camera.translateX(-10*dt);
+  if(keys.d) camera.translateX(10*dt);
+
+  Workspace.forEach(inst=>{
+    if(inst.scriptInstance) {
+      inst.scriptInstance.editorUpdate?.(inst,dt);
+      if(playing) inst.scriptInstance.update?.(inst,dt);
     }
   });
 
