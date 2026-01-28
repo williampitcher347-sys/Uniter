@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Web Game Engine</title>
+<title>Web Script Engine</title>
 
 <style>
 body {
   margin:0;
   overflow:hidden;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Consolas, monospace;
   background:#1e1e1e;
+  color:#ccc;
 }
 
 /* TOP BAR */
@@ -18,66 +19,11 @@ body {
   top:0; left:0; right:0;
   height:42px;
   background:#2d2d30;
-  color:#ddd;
   display:flex;
   align-items:center;
   gap:8px;
   padding:0 10px;
   z-index:10;
-}
-
-/* LEFT PANEL */
-#left {
-  position:fixed;
-  top:42px; left:0; bottom:0;
-  width:220px;
-  background:#252526;
-  color:#ccc;
-  padding:8px;
-  overflow:auto;
-}
-
-/* RIGHT PANEL */
-#right {
-  position:fixed;
-  top:42px; right:0; bottom:0;
-  width:340px;
-  background:#252526;
-  color:#ccc;
-  padding:8px;
-}
-
-/* SHORTCUT PANEL */
-#shortcuts {
-  position:fixed;
-  bottom:10px; left:10px;
-  background:rgba(37,37,38,0.95);
-  color:#ccc;
-  padding:10px;
-  border-radius:6px;
-  font-size:12px;
-  line-height:1.6;
-}
-
-/* UI */
-h3 { margin:6px 0; font-size:13px; color:#9cdcfe; }
-
-.item {
-  padding:5px;
-  border-radius:4px;
-  cursor:pointer;
-}
-.item:hover { background:#333; }
-.item.sel { background:#007acc; }
-
-textarea {
-  width:100%;
-  height:220px;
-  background:#1e1e1e;
-  color:#d4d4d4;
-  border:1px solid #333;
-  font-family: Consolas, monospace;
-  font-size:12px;
 }
 
 button {
@@ -89,106 +35,163 @@ button {
   cursor:pointer;
 }
 button:hover { background:#1177bb; }
+
+#mode { margin-left:auto; opacity:0.7; }
+
+/* PANELS */
+#left {
+  position:fixed;
+  top:42px; left:0; bottom:0;
+  width:220px;
+  background:#252526;
+  padding:8px;
+  overflow:auto;
+}
+
+#right {
+  position:fixed;
+  top:42px; right:0; bottom:0;
+  width:360px;
+  background:#252526;
+  padding:8px;
+  overflow:auto;
+}
+
+h3 {
+  margin:8px 0;
+  font-size:13px;
+  color:#9cdcfe;
+}
+
+.item {
+  padding:5px;
+  border-radius:4px;
+  cursor:pointer;
+}
+.item:hover { background:#333; }
+.item.sel { background:#007acc; }
+
+/* SCRIPT */
+textarea {
+  width:100%;
+  height:260px;
+  background:#1e1e1e;
+  color:#d4d4d4;
+  border:1px solid #333;
+  font-size:12px;
+  resize:none;
+}
+
+/* INSPECTOR */
+.ins-row {
+  display:flex;
+  gap:4px;
+  margin-bottom:4px;
+}
+.ins-row input {
+  width:100%;
+  background:#1e1e1e;
+  border:1px solid #333;
+  color:#ccc;
+  font-size:12px;
+  padding:2px;
+}
 </style>
 </head>
 
 <body>
 
+<!-- TOP BAR -->
 <div id="topbar">
   <button onclick="play()">▶ Play</button>
   <button onclick="stop()">⏹ Stop</button>
   <button onclick="addCube()">➕ Cube</button>
   <button onclick="addSphere()">➕ Sphere</button>
   <button onclick="deleteSelected()">🗑 Delete</button>
-  <button onclick="resetCamera()">🎥 Reset Camera</button>
-  <input type="file" id="upload" accept=".glb,.gltf">
+  <button onclick="resetCamera()">🎥 Reset Cam</button>
   <span id="mode">Editor</span>
 </div>
 
+<!-- LEFT -->
 <div id="left">
-  <h3>Workspace</h3>
+  <h3>Hierarchy</h3>
   <div id="workspace"></div>
 </div>
 
+<!-- RIGHT -->
 <div id="right">
-  <h3>Script (JavaScript)</h3>
-  <div style="font-size:12px;color:#aaa">Attached Script: Script</div>
-  <textarea id="script">
-class Script {
-  start(o) {
-    console.log("Started:", o.name);
-  }
-  update(o, dt) {
-    o.mesh.rotation.y += dt;
-  }
-}
-  </textarea>
-  <br><br>
+  <h3>Inspector</h3>
+  <div id="inspector"></div>
+
+  <h3>Scripting Helpers</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:6px;">
+    <button onclick="insert('rotateY')">Rotate Y</button>
+    <button onclick="insert('moveF')">Move Forward</button>
+    <button onclick="insert('spin')">Spin</button>
+    <button onclick="insert('float')">Float</button>
+    <button onclick="insert('look')">Look At Cam</button>
+  </div>
+
+  <h3>Script</h3>
+  <textarea id="script"></textarea>
+  <br>
   <button onclick="applyScript()">Apply Script</button>
 </div>
 
-<div id="shortcuts">
-<b>Shortcuts</b><br>
-W A S D – Move Camera<br>
-Right Mouse – Look<br>
-M – Lock / Unlock Mouse<br>
-Left Click – Select Object<br>
-Play – Run Scripts
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* SCENE */
+/* ===================== ENGINE CORE ===================== */
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // blue sky
+scene.background = new THREE.Color(0x87ceeb);
 
-/* CAMERA */
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
-camera.position.set(0, 6, 12);
+camera.position.set(0,6,12);
 
-/* RENDERER */
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-/* LIGHTING */
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1);
-sun.position.set(20, 30, 10);
+/* LIGHT */
+scene.add(new THREE.AmbientLight(0xffffff,0.4));
+const sun = new THREE.DirectionalLight(0xffffff,1);
+sun.position.set(20,30,10);
 sun.castShadow = true;
 scene.add(sun);
 
-/* GRASS BASEPLATE */
-const grass = new THREE.Mesh(
-  new THREE.BoxGeometry(80, 1, 80),
-  new THREE.MeshStandardMaterial({
-    color:0x3a8f3a,
-    roughness:1
-  })
+/* GROUND */
+const ground = new THREE.Mesh(
+  new THREE.BoxGeometry(80,1,80),
+  new THREE.MeshStandardMaterial({ color:0x3a8f3a })
 );
-grass.position.y = -0.5;
-grass.receiveShadow = true;
-scene.add(grass);
+ground.position.y = -0.5;
+ground.receiveShadow = true;
+scene.add(ground);
 
 /* OBJECT SYSTEM */
 const objects = [];
 let selected = null;
 let playing = false;
 
-function addObject(mesh, name) {
+function createObject(mesh, name) {
   mesh.castShadow = true;
   scene.add(mesh);
-  const o = { name, mesh, script:null, code:"", started:false };
+  const o = {
+    name,
+    mesh,
+    code: defaultScript(),
+    instance:null,
+    started:false
+  };
   objects.push(o);
-  refreshWorkspace();
-  return o;
+  select(o);
+  refreshHierarchy();
 }
 
 function addCube() {
-  addObject(
+  createObject(
     new THREE.Mesh(
       new THREE.BoxGeometry(1,1,1),
       new THREE.MeshStandardMaterial({ color:0xff5555 })
@@ -198,9 +201,9 @@ function addCube() {
 }
 
 function addSphere() {
-  addObject(
+  createObject(
     new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 32, 32),
+      new THREE.SphereGeometry(0.5,32,32),
       new THREE.MeshStandardMaterial({ color:0x55aaff })
     ),
     "Sphere"
@@ -209,109 +212,158 @@ function addSphere() {
 
 addCube();
 
-/* WORKSPACE */
-function refreshWorkspace() {
+/* UI */
+function refreshHierarchy() {
   const w = document.getElementById("workspace");
-  w.innerHTML = "";
-  objects.forEach(o => {
-    const d = document.createElement("div");
-    d.className = "item" + (o===selected ? " sel" : "");
-    d.textContent = o.name;
-    d.onclick = () => select(o);
+  w.innerHTML="";
+  objects.forEach(o=>{
+    const d=document.createElement("div");
+    d.className="item"+(o===selected?" sel":"");
+    d.textContent=o.name;
+    d.onclick=()=>select(o);
     w.appendChild(d);
   });
 }
 
 function select(o) {
-  selected = o;
-  document.getElementById("script").value = o.code || document.getElementById("script").value;
-  refreshWorkspace();
+  selected=o;
+  document.getElementById("script").value=o.code;
+  refreshHierarchy();
+  refreshInspector();
 }
 
 function deleteSelected() {
-  if (!selected) return;
+  if(!selected) return;
   scene.remove(selected.mesh);
-  objects.splice(objects.indexOf(selected), 1);
-  selected = null;
-  refreshWorkspace();
+  objects.splice(objects.indexOf(selected),1);
+  selected=null;
+  refreshHierarchy();
+  document.getElementById("inspector").innerHTML="";
 }
 
-/* SCRIPT */
-function applyScript() {
-  if (!selected) return;
-  const code = document.getElementById("script").value;
-  const ScriptClass = new Function(code + "; return Script;")();
-  selected.script = new ScriptClass();
-  selected.code = code;
-  selected.started = false;
+/* INSPECTOR */
+function refreshInspector() {
+  const i=document.getElementById("inspector");
+  if(!selected){ i.innerHTML=""; return; }
+
+  const p=selected.mesh.position;
+  const r=selected.mesh.rotation;
+  const s=selected.mesh.scale;
+
+  i.innerHTML=`
+<b>Position</b>
+<div class="ins-row">
+<input value="${p.x}" onchange="p.x=this.value">
+<input value="${p.y}" onchange="p.y=this.value">
+<input value="${p.z}" onchange="p.z=this.value">
+</div>
+<b>Rotation</b>
+<div class="ins-row">
+<input value="${r.x}" onchange="r.x=this.value">
+<input value="${r.y}" onchange="r.y=this.value">
+<input value="${r.z}" onchange="r.z=this.value">
+</div>
+<b>Scale</b>
+<div class="ins-row">
+<input value="${s.x}" onchange="s.x=this.value">
+<input value="${s.y}" onchange="s.y=this.value">
+<input value="${s.z}" onchange="s.z=this.value">
+</div>`;
 }
 
-/* MODEL UPLOAD */
-document.getElementById("upload").onchange = e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  new THREE.GLTFLoader().load(URL.createObjectURL(file), gltf => {
-    addObject(gltf.scene, file.name);
+/* SCRIPTING */
+function defaultScript(){
+return `class Script {
+  start(o) {
+
+  }
+
+  update(o, dt) {
+
+  }
+}`;
+}
+
+function applyScript(){
+  if(!selected) return;
+  selected.code=document.getElementById("script").value;
+  selected.started=false;
+}
+
+function insert(type){
+  if(!selected) return;
+  const ta=document.getElementById("script");
+  const map={
+    rotateY:"  o.mesh.rotation.y += dt;\n",
+    moveF:"  o.mesh.translateZ(-5*dt);\n",
+    spin:"  o.mesh.rotation.x+=dt;\n  o.mesh.rotation.y+=dt;\n",
+    float:"  o.mesh.position.y=Math.sin(performance.now()*0.002);\n",
+    look:"  o.mesh.lookAt(camera.position);\n"
+  };
+
+  ta.value=ta.value.replace(
+    /update\\(o, dt\\) \\{([\\s\\S]*?)\\}/,
+    (m,b)=>`update(o, dt) {\n${b}${map[type]}}`
+  );
+}
+
+/* PLAY MODE */
+function play(){
+  playing=true;
+  document.getElementById("mode").textContent="Play";
+  objects.forEach(o=>{
+    try{
+      const C=new Function("camera",o.code+";return Script;")(camera);
+      o.instance=new C();
+      o.started=false;
+    }catch(e){ console.error(e); }
   });
-};
-
-/* CAMERA CONTROLS */
-const keys = {};
-let mouseLocked = false;
-let yaw = 0, pitch = 0;
-
-addEventListener("keydown", e => {
-  keys[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === "m") toggleMouse();
-});
-addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-function toggleMouse() {
-  if (mouseLocked) document.exitPointerLock();
-  else renderer.domElement.requestPointerLock();
 }
 
-document.addEventListener("pointerlockchange", () => {
-  mouseLocked = document.pointerLockElement === renderer.domElement;
+function stop(){
+  playing=false;
+  document.getElementById("mode").textContent="Editor";
+}
+
+/* CAMERA */
+const keys={};
+let yaw=0,pitch=0,locked=false;
+
+addEventListener("keydown",e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==="m") renderer.domElement.requestPointerLock();
+});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+addEventListener("mousemove",e=>{
+  if(document.pointerLockElement!==renderer.domElement) return;
+  yaw-=e.movementX*0.002;
+  pitch-=e.movementY*0.002;
+  pitch=Math.max(-1.5,Math.min(1.5,pitch));
 });
 
-addEventListener("mousemove", e => {
-  if (!mouseLocked) return;
-  yaw -= e.movementX * 0.002;
-  pitch -= e.movementY * 0.002;
-  pitch = Math.max(-1.5, Math.min(1.5, pitch));
-});
-
-/* PLAY LOOP */
-let last = performance.now();
+/* LOOP */
+let last=performance.now();
 (function loop(t){
   requestAnimationFrame(loop);
-  const dt = (t-last)/1000;
-  last = t;
+  const dt=(t-last)/1000; last=t;
 
-  camera.rotation.set(pitch, yaw, 0, "YXZ");
+  camera.rotation.set(pitch,yaw,0,"YXZ");
+  if(keys.w) camera.translateZ(-10*dt);
+  if(keys.s) camera.translateZ(10*dt);
+  if(keys.a) camera.translateX(-10*dt);
+  if(keys.d) camera.translateX(10*dt);
 
-  if (keys.w) camera.translateZ(-10*dt);
-  if (keys.s) camera.translateZ(10*dt);
-  if (keys.a) camera.translateX(-10*dt);
-  if (keys.d) camera.translateX(10*dt);
-
-  if (playing) {
-    objects.forEach(o => {
-      if (o.script) {
-        if (!o.started) {
-          o.script.start?.(o);
-          o.started = true;
-        }
-        o.script.update?.(o, dt);
-      }
+  if(playing){
+    objects.forEach(o=>{
+      if(!o.instance) return;
+      if(!o.started){ o.instance.start?.(o); o.started=true; }
+      o.instance.update?.(o,dt);
     });
   }
 
-  renderer.render(scene, camera);
+  renderer.render(scene,camera);
 })();
 </script>
 
 </body>
 </html>
-
