@@ -2,146 +2,58 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Web Script Engine</title>
+<title>Web Script Engine v2</title>
 
 <style>
-body {
-  margin:0;
-  overflow:hidden;
-  font-family: Consolas, monospace;
-  background:#1e1e1e;
-  color:#ccc;
-}
-
-/* TOP BAR */
+body { margin:0; overflow:hidden; background:#1e1e1e; color:#ccc; font-family:Consolas }
 #topbar {
-  position:fixed;
-  top:0; left:0; right:0;
-  height:42px;
-  background:#2d2d30;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:0 10px;
-  z-index:10;
+  position:fixed; top:0; left:0; right:0; height:42px;
+  background:#2d2d30; display:flex; gap:6px; padding:6px; z-index:10;
 }
-
-button {
-  background:#0e639c;
-  border:none;
-  color:white;
-  padding:6px 10px;
-  border-radius:3px;
-  cursor:pointer;
-}
-button:hover { background:#1177bb; }
-
-#mode { margin-left:auto; opacity:0.7; }
-
-/* PANELS */
-#left {
-  position:fixed;
-  top:42px; left:0; bottom:0;
-  width:220px;
-  background:#252526;
-  padding:8px;
-  overflow:auto;
-}
-
-#right {
-  position:fixed;
-  top:42px; right:0; bottom:0;
-  width:360px;
-  background:#252526;
-  padding:8px;
-  overflow:auto;
-}
-
-h3 {
-  margin:8px 0;
-  font-size:13px;
-  color:#9cdcfe;
-}
-
-.item {
-  padding:5px;
-  border-radius:4px;
-  cursor:pointer;
-}
-.item:hover { background:#333; }
-.item.sel { background:#007acc; }
-
-/* SCRIPT */
-textarea {
-  width:100%;
-  height:260px;
-  background:#1e1e1e;
-  color:#d4d4d4;
-  border:1px solid #333;
-  font-size:12px;
-  resize:none;
-}
-
-/* INSPECTOR */
-.ins-row {
-  display:flex;
-  gap:4px;
-  margin-bottom:4px;
-}
-.ins-row input {
-  width:100%;
-  background:#1e1e1e;
-  border:1px solid #333;
-  color:#ccc;
-  font-size:12px;
-  padding:2px;
-}
+button { background:#0e639c; border:none; color:#fff; padding:5px 10px; cursor:pointer }
+button:hover { background:#1177bb }
+#left { position:fixed; top:42px; left:0; bottom:0; width:220px; background:#252526; padding:6px }
+#right { position:fixed; top:42px; right:0; bottom:0; width:360px; background:#252526; padding:6px; overflow:auto }
+.item { padding:4px; cursor:pointer }
+.item.sel { background:#007acc }
+textarea { width:100%; height:220px; background:#1e1e1e; color:#ccc; border:1px solid #333 }
+input { background:#1e1e1e; border:1px solid #333; color:#ccc }
+h3 { color:#9cdcfe; margin:6px 0 }
 </style>
 </head>
 
 <body>
 
-<!-- TOP BAR -->
 <div id="topbar">
   <button onclick="play()">▶ Play</button>
   <button onclick="stop()">⏹ Stop</button>
   <button onclick="addCube()">➕ Cube</button>
   <button onclick="addSphere()">➕ Sphere</button>
-  <button onclick="deleteSelected()">🗑 Delete</button>
-  <button onclick="resetCamera()">🎥 Reset Cam</button>
+  <input type="file" id="upload" accept=".glb,.gltf">
+  <button onclick="saveScene()">💾 Save</button>
+  <input type="file" id="loadScene" accept=".json">
   <span id="mode">Editor</span>
 </div>
 
-<!-- LEFT -->
 <div id="left">
   <h3>Hierarchy</h3>
-  <div id="workspace"></div>
+  <div id="hierarchy"></div>
 </div>
 
-<!-- RIGHT -->
 <div id="right">
   <h3>Inspector</h3>
   <div id="inspector"></div>
 
-  <h3>Scripting Helpers</h3>
-  <div style="display:flex; flex-wrap:wrap; gap:6px;">
-    <button onclick="insert('rotateY')">Rotate Y</button>
-    <button onclick="insert('moveF')">Move Forward</button>
-    <button onclick="insert('spin')">Spin</button>
-    <button onclick="insert('float')">Float</button>
-    <button onclick="insert('look')">Look At Cam</button>
-  </div>
-
   <h3>Script</h3>
   <textarea id="script"></textarea>
-  <br>
   <button onclick="applyScript()">Apply Script</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* ===================== ENGINE CORE ===================== */
+/* ================= ENGINE CORE ================= */
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
@@ -149,139 +61,111 @@ scene.background = new THREE.Color(0x87ceeb);
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 camera.position.set(0,6,12);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-/* LIGHT */
 scene.add(new THREE.AmbientLight(0xffffff,0.4));
 const sun = new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(20,30,10);
-sun.castShadow = true;
 scene.add(sun);
 
-/* GROUND */
+/* Ground */
 const ground = new THREE.Mesh(
   new THREE.BoxGeometry(80,1,80),
-  new THREE.MeshStandardMaterial({ color:0x3a8f3a })
+  new THREE.MeshStandardMaterial({color:0x3a8f3a})
 );
-ground.position.y = -0.5;
-ground.receiveShadow = true;
+ground.position.y=-0.5;
 scene.add(ground);
 
-/* OBJECT SYSTEM */
-const objects = [];
-let selected = null;
-let playing = false;
+/* ================= OBJECT SYSTEM ================= */
 
-function createObject(mesh, name) {
-  mesh.castShadow = true;
+const objects=[];
+let selected=null;
+let playing=false;
+
+function defaultScript(){
+return `class Script {
+  start(o){}
+
+  update(o, dt){}
+
+  onCollision(other){}
+}`;
+}
+
+function createObject(mesh,name){
   scene.add(mesh);
-  const o = {
+  const o={
     name,
     mesh,
-    code: defaultScript(),
+    code:defaultScript(),
     instance:null,
-    started:false
+    started:false,
+    collider:new THREE.Box3().setFromObject(mesh)
   };
   objects.push(o);
   select(o);
   refreshHierarchy();
 }
 
-function addCube() {
-  createObject(
-    new THREE.Mesh(
-      new THREE.BoxGeometry(1,1,1),
-      new THREE.MeshStandardMaterial({ color:0xff5555 })
-    ),
-    "Cube"
-  );
+/* Primitives */
+function addCube(){
+  createObject(new THREE.Mesh(
+    new THREE.BoxGeometry(1,1,1),
+    new THREE.MeshStandardMaterial({color:0xff5555})
+  ),"Cube");
 }
-
-function addSphere() {
-  createObject(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(0.5,32,32),
-      new THREE.MeshStandardMaterial({ color:0x55aaff })
-    ),
-    "Sphere"
-  );
+function addSphere(){
+  createObject(new THREE.Mesh(
+    new THREE.SphereGeometry(0.5,32,32),
+    new THREE.MeshStandardMaterial({color:0x55aaff})
+  ),"Sphere");
 }
-
 addCube();
 
-/* UI */
-function refreshHierarchy() {
-  const w = document.getElementById("workspace");
-  w.innerHTML="";
+/* ================= FILE UPLOAD (AUTO SPAWN) ================= */
+
+document.getElementById("upload").onchange=e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  new THREE.GLTFLoader().load(URL.createObjectURL(file),g=>{
+    const model=g.scene;
+    model.scale.setScalar(1);
+    createObject(model,file.name);
+  });
+};
+
+/* ================= UI ================= */
+
+function refreshHierarchy(){
+  const h=document.getElementById("hierarchy");
+  h.innerHTML="";
   objects.forEach(o=>{
     const d=document.createElement("div");
     d.className="item"+(o===selected?" sel":"");
     d.textContent=o.name;
     d.onclick=()=>select(o);
-    w.appendChild(d);
+    h.appendChild(d);
   });
 }
 
-function select(o) {
+function select(o){
   selected=o;
   document.getElementById("script").value=o.code;
   refreshHierarchy();
   refreshInspector();
 }
 
-function deleteSelected() {
+function refreshInspector(){
   if(!selected) return;
-  scene.remove(selected.mesh);
-  objects.splice(objects.indexOf(selected),1);
-  selected=null;
-  refreshHierarchy();
-  document.getElementById("inspector").innerHTML="";
-}
-
-/* INSPECTOR */
-function refreshInspector() {
-  const i=document.getElementById("inspector");
-  if(!selected){ i.innerHTML=""; return; }
-
   const p=selected.mesh.position;
-  const r=selected.mesh.rotation;
-  const s=selected.mesh.scale;
-
+  const i=document.getElementById("inspector");
   i.innerHTML=`
-<b>Position</b>
-<div class="ins-row">
-<input value="${p.x}" onchange="p.x=this.value">
-<input value="${p.y}" onchange="p.y=this.value">
-<input value="${p.z}" onchange="p.z=this.value">
-</div>
-<b>Rotation</b>
-<div class="ins-row">
-<input value="${r.x}" onchange="r.x=this.value">
-<input value="${r.y}" onchange="r.y=this.value">
-<input value="${r.z}" onchange="r.z=this.value">
-</div>
-<b>Scale</b>
-<div class="ins-row">
-<input value="${s.x}" onchange="s.x=this.value">
-<input value="${s.y}" onchange="s.y=this.value">
-<input value="${s.z}" onchange="s.z=this.value">
-</div>`;
-}
-
-/* SCRIPTING */
-function defaultScript(){
-return `class Script {
-  start(o) {
-
-  }
-
-  update(o, dt) {
-
-  }
-}`;
+  X <input value="${p.x}" onchange="selected.mesh.position.x=this.value">
+  Y <input value="${p.y}" onchange="selected.mesh.position.y=this.value">
+  Z <input value="${p.z}" onchange="selected.mesh.position.z=this.value">
+  `;
 }
 
 function applyScript(){
@@ -290,24 +174,63 @@ function applyScript(){
   selected.started=false;
 }
 
-function insert(type){
-  if(!selected) return;
-  const ta=document.getElementById("script");
-  const map={
-    rotateY:"  o.mesh.rotation.y += dt;\n",
-    moveF:"  o.mesh.translateZ(-5*dt);\n",
-    spin:"  o.mesh.rotation.x+=dt;\n  o.mesh.rotation.y+=dt;\n",
-    float:"  o.mesh.position.y=Math.sin(performance.now()*0.002);\n",
-    look:"  o.mesh.lookAt(camera.position);\n"
-  };
+/* ================= SAVE / LOAD ================= */
 
-  ta.value=ta.value.replace(
-    /update\\(o, dt\\) \\{([\\s\\S]*?)\\}/,
-    (m,b)=>`update(o, dt) {\n${b}${map[type]}}`
-  );
+function saveScene(){
+  const data=objects.map(o=>({
+    name:o.name,
+    pos:o.mesh.position.toArray(),
+    rot:o.mesh.rotation.toArray(),
+    scale:o.mesh.scale.toArray(),
+    code:o.code
+  }));
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="scene.json";
+  a.click();
 }
 
-/* PLAY MODE */
+document.getElementById("loadScene").onchange=e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    objects.forEach(o=>scene.remove(o.mesh));
+    objects.length=0;
+    JSON.parse(r.result).forEach(d=>{
+      const m=new THREE.Mesh(
+        new THREE.BoxGeometry(1,1,1),
+        new THREE.MeshStandardMaterial({color:0xaaaaaa})
+      );
+      m.position.fromArray(d.pos);
+      m.rotation.fromArray(d.rot);
+      m.scale.fromArray(d.scale);
+      createObject(m,d.name);
+      objects.at(-1).code=d.code;
+    });
+  };
+  r.readAsText(file);
+};
+
+/* ================= COLLISIONS ================= */
+
+function checkCollisions(){
+  for(let i=0;i<objects.length;i++){
+    for(let j=i+1;j<objects.length;j++){
+      const a=objects[i], b=objects[j];
+      a.collider.setFromObject(a.mesh);
+      b.collider.setFromObject(b.mesh);
+      if(a.collider.intersectsBox(b.collider)){
+        a.instance?.onCollision?.(b);
+        b.instance?.onCollision?.(a);
+      }
+    }
+  }
+}
+
+/* ================= PLAY LOOP ================= */
+
 function play(){
   playing=true;
   document.getElementById("mode").textContent="Play";
@@ -316,7 +239,7 @@ function play(){
       const C=new Function("camera",o.code+";return Script;")(camera);
       o.instance=new C();
       o.started=false;
-    }catch(e){ console.error(e); }
+    }catch(e){console.error(e);}
   });
 }
 
@@ -325,23 +248,21 @@ function stop(){
   document.getElementById("mode").textContent="Editor";
 }
 
-/* CAMERA */
-const keys={};
-let yaw=0,pitch=0,locked=false;
+/* ================= CAMERA ================= */
 
-addEventListener("keydown",e=>{
-  keys[e.key.toLowerCase()]=true;
-  if(e.key==="m") renderer.domElement.requestPointerLock();
-});
+const keys={}; let yaw=0,pitch=0;
+addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 addEventListener("mousemove",e=>{
   if(document.pointerLockElement!==renderer.domElement) return;
   yaw-=e.movementX*0.002;
   pitch-=e.movementY*0.002;
-  pitch=Math.max(-1.5,Math.min(1.5,pitch));
 });
 
-/* LOOP */
+renderer.domElement.onclick=()=>renderer.domElement.requestPointerLock();
+
+/* ================= LOOP ================= */
+
 let last=performance.now();
 (function loop(t){
   requestAnimationFrame(loop);
@@ -356,9 +277,10 @@ let last=performance.now();
   if(playing){
     objects.forEach(o=>{
       if(!o.instance) return;
-      if(!o.started){ o.instance.start?.(o); o.started=true; }
+      if(!o.started){o.instance.start?.(o);o.started=true;}
       o.instance.update?.(o,dt);
     });
+    checkCollisions();
   }
 
   renderer.render(scene,camera);
