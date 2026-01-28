@@ -1,129 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Web 3D Engine</title>
+<title>Web Game Engine</title>
+
 <style>
-body { margin:0; overflow:hidden; background:#0b0f1a; font-family:Arial }
-
-/* UI */
-#top {
- position:fixed; top:0; left:0; right:0; height:42px;
- background:#151a2e; color:#fff;
- display:flex; align-items:center; padding:0 10px; gap:8px;
- z-index:10;
+body {
+  margin:0;
+  overflow:hidden;
+  font-family: Arial, Helvetica, sans-serif;
+  background:#2b2b2b;
 }
 
+/* TOP BAR */
+#topbar {
+  position:fixed;
+  top:0; left:0; right:0;
+  height:40px;
+  background:#3c3c3c;
+  color:#eee;
+  display:flex;
+  align-items:center;
+  padding:0 10px;
+  gap:8px;
+  z-index:10;
+}
+
+/* LEFT PANEL */
 #left {
- position:fixed; top:42px; left:0; bottom:0; width:240px;
- background:#0f1324; color:#ddd; padding:8px; overflow:auto;
+  position:fixed;
+  top:40px; left:0; bottom:0;
+  width:220px;
+  background:#252526;
+  color:#ddd;
+  padding:8px;
+  overflow:auto;
 }
 
+/* RIGHT PANEL */
 #right {
- position:fixed; top:42px; right:0; bottom:0; width:340px;
- background:#0f1324; color:#ddd; padding:8px;
+  position:fixed;
+  top:40px; right:0; bottom:0;
+  width:320px;
+  background:#252526;
+  color:#ddd;
+  padding:8px;
 }
 
-h3 { margin:6px 0; font-size:14px; color:#7aa2ff }
+/* PANELS */
+h3 {
+  margin:6px 0;
+  font-size:13px;
+  color:#c8c8c8;
+}
 
 .item {
- padding:6px; cursor:pointer; border-radius:4px;
+  padding:5px;
+  border-radius:4px;
+  cursor:pointer;
 }
-.item.sel { background:#2b4cff }
+.item:hover { background:#333 }
+.item.sel { background:#007acc }
 
+/* SCRIPT */
 textarea {
- width:100%; height:220px;
- background:#050814; color:#7CFF7C;
- border:1px solid #2b4cff;
- font-family:monospace; font-size:12px;
+  width:100%;
+  height:200px;
+  background:#1e1e1e;
+  color:#d4d4d4;
+  border:1px solid #333;
+  font-family: Consolas, monospace;
+  font-size:12px;
 }
 
+/* BUTTONS */
 button {
- background:#2b4cff; color:white;
- border:none; padding:6px 10px;
- border-radius:4px; cursor:pointer;
+  background:#0e639c;
+  border:none;
+  color:white;
+  padding:6px 10px;
+  border-radius:3px;
+  cursor:pointer;
 }
-
-label { font-size:12px; color:#aaa }
+button:hover { background:#1177bb }
 </style>
 </head>
+
 <body>
 
-<div id="top">
- <button onclick="play()">▶ Play</button>
- <button onclick="stop()">⏹ Stop</button>
- <button onclick="downloadScene()">⬇ Download Scene</button>
- <input type="file" id="upload" accept=".glb,.gltf">
- <span id="status">Editor Mode</span>
+<div id="topbar">
+  <button onclick="play()">Play</button>
+  <button onclick="stop()">Stop</button>
+  <input type="file" id="upload" accept=".glb,.gltf">
+  <span id="mode">Editor</span>
 </div>
 
 <div id="left">
- <h3>Workspace</h3>
- <div id="workspace"></div>
-
- <h3>Assets</h3>
- <div id="assets"></div>
+  <h3>Workspace</h3>
+  <div id="workspace"></div>
 </div>
 
 <div id="right">
- <h3>Script Editor</h3>
- <label>Attached Script:</label>
- <div id="scriptName">None</div>
- <br>
- <textarea id="scriptCode">
+  <h3>Script (JavaScript)</h3>
+  <textarea id="script">
 class Script {
- start(o) {
-  console.log("Script started on", o.name);
- }
- update(o, dt) {
-  o.mesh.rotation.y += dt;
- }
+  start(o) {
+    console.log("Started:", o.name);
+  }
+  update(o, dt) {
+    o.mesh.rotation.y += dt;
+  }
 }
- </textarea>
- <br>
- <button onclick="applyScript()">Apply Script</button>
+  </textarea>
+  <br><br>
+  <button onclick="applyScript()">Apply Script</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* BASIC ENGINE */
+/* SCENE */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1f3a);
+scene.background = new THREE.Color(0xaaaaaa);
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
-camera.position.set(0, 8, 14);
+/* CAMERA */
+const camera = new THREE.PerspectiveCamera(
+  70,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera.position.set(0, 6, 12);
 
+/* RENDERER */
 const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 /* LIGHTING */
-scene.add(new THREE.AmbientLight(0x404060, 0.6));
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.3);
-sun.position.set(15, 30, 10);
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(10, 20, 10);
 sun.castShadow = true;
 scene.add(sun);
 
-/* DETAILED BASEPLATE */
-const baseGeo = new THREE.PlaneGeometry(80, 80, 40, 40);
-baseGeo.rotateX(-Math.PI/2);
-
-baseGeo.vertices?.forEach(v => {
- v.y += (Math.random() - 0.5) * 0.3;
-});
-
+/* BASEPLATE */
 const base = new THREE.Mesh(
- baseGeo,
- new THREE.MeshStandardMaterial({
-  color:0x2c3a4a,
-  roughness:0.8,
-  metalness:0.1
- })
+  new THREE.BoxGeometry(60, 1, 60),
+  new THREE.MeshStandardMaterial({ color:0x6b6b6b })
 );
+base.position.y = -0.5;
 base.receiveShadow = true;
 scene.add(base);
 
@@ -133,119 +162,135 @@ let selected = null;
 let playing = false;
 
 function addObject(mesh, name) {
- scene.add(mesh);
- const o = { name, mesh, script:null, code:"", started:false };
- objects.push(o);
- refreshWorkspace();
- return o;
+  mesh.castShadow = true;
+  scene.add(mesh);
+  const o = { name, mesh, script:null, code:"", started:false };
+  objects.push(o);
+  refreshWorkspace();
+  return o;
 }
 
 /* DEFAULT CUBE */
 addObject(
- new THREE.Mesh(
-  new THREE.BoxGeometry(1,1,1),
-  new THREE.MeshStandardMaterial({ color:0xff5555 })
- ),
- "Cube"
+  new THREE.Mesh(
+    new THREE.BoxGeometry(1,1,1),
+    new THREE.MeshStandardMaterial({ color:0xff5555 })
+  ),
+  "Cube"
 );
 
 /* WORKSPACE UI */
 function refreshWorkspace() {
- const w = document.getElementById("workspace");
- w.innerHTML = "";
- objects.forEach(o => {
-  const d = document.createElement("div");
-  d.className = "item" + (o===selected?" sel":"");
-  d.textContent = o.name;
-  d.onclick = () => select(o);
-  w.appendChild(d);
- });
+  const w = document.getElementById("workspace");
+  w.innerHTML = "";
+  objects.forEach(o => {
+    const d = document.createElement("div");
+    d.className = "item" + (o === selected ? " sel" : "");
+    d.textContent = o.name;
+    d.onclick = () => select(o);
+    w.appendChild(d);
+  });
 }
 
 function select(o) {
- selected = o;
- document.getElementById("scriptCode").value = o.code || document.getElementById("scriptCode").value;
- document.getElementById("scriptName").textContent = o.script ? "Script" : "None";
- refreshWorkspace();
+  selected = o;
+  document.getElementById("script").value = o.code || document.getElementById("script").value;
+  refreshWorkspace();
 }
 
 /* SCRIPT SYSTEM */
 function applyScript() {
- if(!selected) return;
- const code = document.getElementById("scriptCode").value;
- try {
-  const ScriptClass = new Function(code + "; return Script;")();
-  selected.script = new ScriptClass();
-  selected.code = code;
-  selected.started = false;
-  document.getElementById("scriptName").textContent = "Script";
- } catch(e) {
-  alert("Script error:\n" + e.message);
- }
+  if (!selected) return;
+  const code = document.getElementById("script").value;
+  try {
+    const ScriptClass = new Function(code + "; return Script;")();
+    selected.script = new ScriptClass();
+    selected.code = code;
+    selected.started = false;
+  } catch (e) {
+    alert("Script error:\n" + e.message);
+  }
 }
 
-/* MODEL UPLOAD (ASSET STYLE) */
-document.getElementById("upload").onchange = e => {
- const file = e.target.files[0];
- if(!file) return;
- const loader = new THREE.GLTFLoader();
- loader.load(URL.createObjectURL(file), gltf => {
-  const m = gltf.scene;
-  m.position.y = 1;
-  addObject(m, file.name);
-  const a = document.createElement("div");
-  a.textContent = file.name;
-  document.getElementById("assets").appendChild(a);
- });
-};
+/* MODEL UPLOAD (WORKING) */
+document.getElementById("upload").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-/* SAVE */
-function downloadScene() {
- const data = objects.map(o => ({
-  name:o.name,
-  pos:o.mesh.position.toArray(),
-  rot:o.mesh.rotation.toArray(),
-  scale:o.mesh.scale.toArray(),
-  script:o.code
- }));
- const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
- const a = document.createElement("a");
- a.href = URL.createObjectURL(blob);
- a.download = "scene.json";
- a.click();
-}
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    URL.createObjectURL(file),
+    gltf => {
+      const model = gltf.scene;
+      model.position.y = 0;
+      addObject(model, file.name);
+    },
+    undefined,
+    err => alert("Failed to load model")
+  );
+});
 
-/* PLAY */
-function play() {
- playing = true;
- document.getElementById("status").textContent = "Play Mode";
-}
-function stop() {
- playing = false;
- document.getElementById("status").textContent = "Editor Mode";
-}
+/* CAMERA CONTROLS */
+const keys = {};
+let rightMouse = false;
+let yaw = 0, pitch = 0;
+
+window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+renderer.domElement.addEventListener("mousedown", e => {
+  if (e.button === 2) rightMouse = true;
+});
+window.addEventListener("mouseup", () => rightMouse = false);
+
+window.addEventListener("mousemove", e => {
+  if (!rightMouse) return;
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-1.5, Math.min(1.5, pitch));
+});
 
 /* LOOP */
 let last = performance.now();
-(function loop(t){
- requestAnimationFrame(loop);
- const dt = (t-last)/1000;
- last = t;
+function loop(t) {
+  requestAnimationFrame(loop);
+  const dt = (t - last) / 1000;
+  last = t;
 
- if(playing){
-  objects.forEach(o=>{
-   if(o.script){
-    if(!o.started){
-     o.script.start?.(o);
-     o.started = true;
-    }
-    o.script.update?.(o, dt);
-   }
-  });
- }
+  camera.rotation.set(pitch, yaw, 0, "YXZ");
 
- renderer.render(scene, camera);
-})();
+  if (keys.w) camera.translateZ(-10 * dt);
+  if (keys.s) camera.translateZ(10 * dt);
+  if (keys.a) camera.translateX(-10 * dt);
+  if (keys.d) camera.translateX(10 * dt);
+
+  if (playing) {
+    objects.forEach(o => {
+      if (o.script) {
+        if (!o.started) {
+          o.script.start?.(o);
+          o.started = true;
+        }
+        o.script.update?.(o, dt);
+      }
+    });
+  }
+
+  renderer.render(scene, camera);
+}
+loop();
+
+/* PLAY / STOP */
+function play() {
+  playing = true;
+  document.getElementById("mode").textContent = "Play";
+}
+function stop() {
+  playing = false;
+  document.getElementById("mode").textContent = "Editor";
+}
 </script>
+
 </body>
 </html>
